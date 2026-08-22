@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { TelcoDataset, TelcoOperator } from "@/lib/data/telco-adapter";
 import type { Series, TipState } from "./chart-tooltip-types";
@@ -60,6 +60,14 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
   const [copied, setCopied] = useState<string | null>(null);
   const tsigRef = useRef<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 720 : false));
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 720px)");
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   function color(op: TelcoOperator) {
     return COLORS[op];
@@ -729,7 +737,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       { style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "16px 18px 18px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)" } },
       h(
         "div",
-        { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "12px" } },
+        { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "12px", flexWrap: "wrap" } },
         h(
           "div",
           null,
@@ -945,7 +953,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       scorecard(),
       h(
         "div",
-        { style: { display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: "16px", marginTop: "16px" } },
+        { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.55fr 1fr", gap: "16px", marginTop: "16px" } },
         panel(
           "Total revenue trend",
           "Rp trillion / quarter · last 12 quarters",
@@ -1005,7 +1013,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       ),
       h(
         "div",
-        { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" } },
+        { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" } },
         panel("Total revenue", "Rp trillion / quarter", lineChart(ser("totalRevenueQ"), labels, { height: 240, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), highlight: labels.length - 1, tipKey: "fin-rev" }), legend(ser("totalRevenueQ")), () => tsvSeries(labels, ser("totalRevenueQ"))),
         panel("EBITDA", "Rp trillion / quarter", lineChart(ser("ebitdaQ"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), tipKey: "fin-ebitda" }), legend(ser("ebitdaQ")), () => tsvSeries(labels, ser("ebitdaQ"))),
         panel("EBITDA margin", "% of revenue", lineChart(ser(ebitdaMarginTrendKey), labels, { height: 240, pct: true, yfmt: (v: number) => (v * 100).toFixed(0) + "%", vfmt: vP(), highlight: labels.length - 1, tipKey: "fin-margin" }), legend(ser(ebitdaMarginTrendKey)), () => tsvSeries(labels, ser(ebitdaMarginTrendKey))),
@@ -1086,7 +1094,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       ),
       h(
         "div",
-        { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" } },
+        { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" } },
         panel("Mobile subscribers", "million · last 12 quarters", lineChart(ser("totalUser"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "sub-mob" }), legend(ser("totalUser")), () => tsvSeries(labels, ser("totalUser"))),
         panel("Prepaid vs postpaid mix", periodTitle() + " · share of base", h("div", { style: { display: "flex", gap: "18px", flexWrap: "wrap", padding: "6px 0" } }, ppPanels), h("div", { style: { fontSize: "10.5px", color: "#9AA8B6" } }, "solid = prepaid · faded = postpaid"), mixCopy),
       ),
@@ -1128,7 +1136,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       ),
       h(
         "div",
-        { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" } },
+        { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", marginTop: "16px" } },
         panel("Prepaid subscribers", "million · last 12 quarters", lineChart(ser("prepaidUser"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "sub-prepaid" }), legend(ser("prepaidUser")), () => tsvSeries(labels, ser("prepaidUser"))),
         panel("Postpaid subscribers", "million · last 12 quarters", lineChart(ser("postpaidUser"), labels, { height: 240, zero: true, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(1), vfmt: vM(), tipKey: "sub-postpaid" }), legend(ser("postpaidUser")), () => tsvSeries(labels, ser("postpaidUser"))),
         panel("Blended ARPU trend", "Rp thousand · last 12 quarters", lineChart(ser(blendedArpuTrendKey), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vK(), tipKey: "sub-barpu" }), legend(ser(blendedArpuTrendKey)), () => tsvSeries(labels, ser(blendedArpuTrendKey))),
@@ -1194,7 +1202,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
         ),
         h(
           "div",
-          { style: { display: "grid", gridTemplateColumns: "1fr 220px", gap: "20px", alignItems: "center" } },
+          { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 220px", gap: "20px", alignItems: "center" } },
           stackedBars(labels, stacks, { height: 320, width: 520, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), tipKey: "rd-" + op }),
           donut(latest, { size: 190 }),
         ),
@@ -1223,7 +1231,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
             const mg = growth(comps[i].seriesQ[idx], comps[i].seriesQ[idx - 1], false);
             return h(
               "div",
-              { key: i, style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", padding: "5px 0", borderTop: i ? "1px solid #F1F4F7" : "none" } },
+              { key: i, style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", padding: "5px 0", borderTop: i ? "1px solid #F1F4F7" : "none", flexWrap: "wrap" } },
               h(
                 "div",
                 { style: { display: "flex", alignItems: "center", gap: "7px" } },
@@ -1232,7 +1240,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
               ),
               h(
                 "div",
-                { style: { display: "flex", alignItems: "center", gap: "10px" } },
+                { style: { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" } },
                 h("span", { style: { width: "34px", textAlign: "right", fontSize: "12px", color: MUTED, fontVariantNumeric: "tabular-nums" } }, tot ? ((s.value / tot) * 100).toFixed(0) + "%" : "—"),
                 h("span", { style: { fontSize: "13px", fontWeight: 600, color: INK, fontVariantNumeric: "tabular-nums", minWidth: "72px", textAlign: "right" } }, fmt(s.value, "tn")),
                 h("span", { style: { width: "62px", display: "inline-flex", justifyContent: "flex-end" } }, chip(cg, 10)),
@@ -1456,7 +1464,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
               </button>
             </div>
           </div>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "14px" }}>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
             {lastUpdatedLabel && (
               <span style={{ fontSize: "11px", color: "#9AA8B6", whiteSpace: "nowrap" }}>Updated {lastUpdatedLabel}</span>
             )}
@@ -1502,7 +1510,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
             </button>
           </div>
         </div>
-        <div style={{ maxWidth: "1320px", margin: "0 auto", padding: "0 34px", display: "flex", gap: "2px" }}>
+        <div style={{ maxWidth: "1320px", margin: "0 auto", padding: "0 34px", display: "flex", gap: "2px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           {tabsDef.map(([k, lb]) => {
             const on = activeTab === k;
             return (
@@ -1522,6 +1530,8 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
                   padding: "12px 16px 11px",
                   cursor: "pointer",
                   fontFamily: "Archivo, sans-serif",
+                  whiteSpace: "nowrap",
+                  flex: "0 0 auto",
                 }}
               >
                 {lb}
