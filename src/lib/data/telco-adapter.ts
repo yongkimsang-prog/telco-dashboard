@@ -102,6 +102,11 @@ export function buildTelcoDataset(data: SummaryData): TelcoDataset {
     fiveGBTS: metric(data, "5G BTS", "Snapshot"),
     totalBTS: metric(data, "Total BTS", "Snapshot"),
     opexQ: metric(data, "Opex", "Quarterly"),
+    // "Expenses" (as opposed to "Expenses+Tax+Finance+Depreciation") is the
+    // sheet's total-expenses figure that includes depreciation & other
+    // expenses but excludes finance cost.
+    expensesQ: metric(data, "Expenses", "Quarterly"),
+    expensesCum: metric(data, "Expenses", "Cumulative"),
     fbbSubscribers,
     // Only Telkomsel reports an FBB ARPU line (as "2C Indihome ARPU") —
     // Indosat and XLSmart show as a gap.

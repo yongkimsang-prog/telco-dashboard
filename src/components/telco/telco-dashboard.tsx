@@ -1012,6 +1012,13 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
         panel("Net income (PAT)", "Rp trillion / quarter · negative = loss", groupedBars(labels, ser("patQ"), { height: 240, yfmt: (v: number) => (v / 1000).toFixed(1), vfmt: vT(), tipKey: "fin-pat" }), legend(ser("patQ")), () => tsvSeries(labels, ser("patQ"))),
         panel("Capex (cumulative)", "Rp trillion · year-to-date", lineChart(ser("capexCum"), labels, { height: 240, zero: true, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), highlight: labels.length - 1, tipKey: "fin-capex" }), legend(ser("capexCum")), () => tsvSeries(labels, ser("capexCum"))),
         panel("Operating expenses", "Rp trillion / quarter", groupedBars(labels, ser("opexQ"), { height: 240, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), tipKey: "fin-opex" }), legend(ser("opexQ")), () => tsvSeries(labels, ser("opexQ"))),
+        panel(
+          "Total Expenses (includes depreciation & others, excludes finance cost)",
+          "Rp trillion / quarter",
+          groupedBars(labels, ser("expensesQ"), { height: 240, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), tipKey: "fin-expenses" }),
+          legend(ser("expensesQ")),
+          () => tsvSeries(labels, ser("expensesQ")),
+        ),
       ),
     );
   }
