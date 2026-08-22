@@ -982,8 +982,8 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
           shareCopy,
         ),
       ),
-      h("div", { style: { marginTop: "16px" } }, panel("Mobile subscribers", "million · last 12 quarters", groupedBars(subLabels, subSeries, { height: 230, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "ov-subs" }), legend(subSeries), () => tsvSeries(subLabels, subSeries))),
-      h("div", { style: { marginTop: "16px" } }, panel("FBB subscribers", "million · last 12 quarters", groupedBars(subLabels, fbbSubSeries, { height: 230, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "ov-fbb-subs" }), legend(fbbSubSeries), () => tsvSeries(subLabels, fbbSubSeries))),
+      h("div", { style: { marginTop: "16px" } }, panel("Mobile subscribers", "million · last 12 quarters", lineChart(subSeries, subLabels, { height: 230, highlight: subLabels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "ov-subs" }), legend(subSeries), () => tsvSeries(subLabels, subSeries))),
+      h("div", { style: { marginTop: "16px" } }, panel("FBB subscribers", "million · last 12 quarters", lineChart(fbbSubSeries, subLabels, { height: 230, highlight: subLabels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "ov-fbb-subs" }), legend(fbbSubSeries), () => tsvSeries(subLabels, fbbSubSeries))),
       h("div", { style: { marginTop: "16px" } }, leagueTable(leagueKpis)),
     );
   }
