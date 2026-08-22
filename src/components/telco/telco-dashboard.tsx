@@ -853,7 +853,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     const head2 = h(
       "tr",
       null,
-      opsSel.map((op) => [h("th", { key: op + "-yoy", style: subHeadCell }, "YoY"), h("th", { key: op + "-mom", style: subHeadCell }, "MoM")]),
+      opsSel.map((op) => [h("th", { key: op + "-yoy", style: subHeadCell }, "YoY"), h("th", { key: op + "-mom", style: subHeadCell }, "QoQ")]),
     );
     const rows = kpis.map((k, ri) => {
       const dataK = kpiData(k);
@@ -883,7 +883,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     });
     const copyFn = () =>
       tsvRows(
-        ["Metric", ...opsSel.flatMap((op) => [op + " value", op + " YoY %", op + " MoM %"])],
+        ["Metric", ...opsSel.flatMap((op) => [op + " value", op + " YoY %", op + " QoQ %"])],
         kpis.map((k) => {
           const dataK = kpiData(k);
           return [
@@ -1204,7 +1204,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
               h("span", { style: { width: "34px" } }),
               h("span", { style: { minWidth: "72px" } }),
               h("span", { style: { width: "62px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.04em", color: MUTED, fontWeight: 600 } }, "YoY"),
-              h("span", { style: { width: "62px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.04em", color: MUTED, fontWeight: 600 } }, "MoM"),
+              h("span", { style: { width: "62px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.04em", color: MUTED, fontWeight: 600 } }, "QoQ"),
             ),
           ),
           latest.map((s, i) => {
