@@ -691,6 +691,8 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     const tot = slices.reduce((a, s) => a + (s.value || 0), 0) || 1;
     let ang = -Math.PI / 2;
     const arcs: any[] = [];
+    const labels: any[] = [];
+    const rmid = (r + rin) / 2;
     slices.forEach((s, i) => {
       const frac = (s.value || 0) / tot;
       const a2 = ang + frac * Math.PI * 2;
@@ -705,12 +707,35 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       const large = frac > 0.5 ? 1 : 0;
       const d = `M${x1} ${y1} A${r} ${r} 0 ${large} 1 ${x2} ${y2} L${xi1} ${yi1} A${rin} ${rin} 0 ${large} 0 ${xi2} ${yi2} Z`;
       arcs.push(h("path", { key: i, d: d, fill: s.color, opacity: 0.94 }));
+      if (opts.showPercent && frac > 0.045) {
+        const mid = ang + frac * Math.PI;
+        const lx = r + rmid * Math.cos(mid),
+          ly = r + rmid * Math.sin(mid);
+        labels.push(
+          h(
+            "text",
+            {
+              key: "lbl" + i,
+              x: lx,
+              y: ly,
+              textAnchor: "middle",
+              dominantBaseline: "middle",
+              fontSize: Math.max(9, sz * 0.058),
+              fontWeight: 700,
+              fill: "#fff",
+              style: { fontFamily: "Archivo", pointerEvents: "none" },
+            },
+            (frac * 100).toFixed(0) + "%",
+          ),
+        );
+      }
       ang = a2;
     });
     return h(
       "svg",
       { viewBox: "0 0 " + sz + " " + sz, width: sz, height: sz, style: { display: "block" } },
       arcs,
+      labels,
       opts.center ? h("text", { x: r, y: r - 2, textAnchor: "middle", fontSize: 15, fontWeight: 700, fill: INK, style: { fontFamily: "Archivo" } }, opts.center) : null,
       opts.centerSub ? h("text", { x: r, y: r + 13, textAnchor: "middle", fontSize: 9.5, fill: MUTED }, opts.centerSub) : null,
     );
@@ -1204,7 +1229,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
           "div",
           { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 220px", gap: "20px", alignItems: "center" } },
           stackedBars(labels, stacks, { height: 320, width: 520, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), tipKey: "rd-" + op }),
-          donut(latest, { size: 190 }),
+          donut(latest, { size: 190, showPercent: true }),
         ),
         h(
           "div",
