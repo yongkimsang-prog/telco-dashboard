@@ -56,7 +56,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
   const [quarter, setQuarter] = useState(defaultQuarter);
   const [mode, setMode] = useState<"quarter" | "ytd">("quarter");
   const [tip, setTipState] = useState<TipState | null>(null);
-  const [showLabels, setShowLabels] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
   const tsigRef = useRef<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -792,7 +792,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     });
     return h(
       "div",
-      { style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "14px 16px 13px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)", display: "flex", flexDirection: "column" } },
+      { style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "14px 16px 13px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)", display: "flex", flexDirection: "column", flex: "1 1 auto", width: "100%", boxSizing: "border-box" } },
       h(
         "div",
         { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px", marginBottom: "4px" } },
@@ -1501,7 +1501,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
                 setQuarter(defaultQuarter);
                 setMode("quarter");
                 setActiveTab("overview");
-                setShowLabels(false);
+                setShowLabels(true);
                 clearTip();
               }}
               style={{ background: "none", border: "1px solid #D7DEE6", borderRadius: "8px", padding: "7px 13px", fontSize: "12.5px", fontWeight: 600, color: "#5B6B7B", cursor: "pointer" }}
