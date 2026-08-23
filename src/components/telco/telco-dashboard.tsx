@@ -846,7 +846,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
 
   function trendSlice(metricKey: string) {
     const idx = qi();
-    const start = Math.max(0, idx - 11);
+    const start = Math.max(0, idx - 8);
     const labels = data.QUARTERS.slice(start, idx + 1);
     const series: Series[] = selectedOps().map((op) => ({ name: op, color: color(op), data: data.METRICS[metricKey][op].slice(start, idx + 1) }));
     return { labels, series, highlight: labels.length - 1 };
@@ -948,9 +948,9 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     const slices = opsSel.map((op) => ({ name: op, color: color(op), value: revData[op].value || 0 }));
     const totSel = slices.reduce((a, s) => a + s.value, 0);
     const tr = trendSlice("totalRevenueQ");
-    const subLabels = data.QUARTERS.slice(Math.max(0, idx - 11), idx + 1);
-    const subSeries: Series[] = opsSel.map((op) => ({ name: op, color: color(op), data: data.METRICS.totalUser[op].slice(Math.max(0, idx - 11), idx + 1) }));
-    const fbbSubSeries: Series[] = opsSel.map((op) => ({ name: op, color: color(op), data: data.METRICS.fbbSubscribers[op].slice(Math.max(0, idx - 11), idx + 1) }));
+    const subLabels = data.QUARTERS.slice(Math.max(0, idx - 8), idx + 1);
+    const subSeries: Series[] = opsSel.map((op) => ({ name: op, color: color(op), data: data.METRICS.totalUser[op].slice(Math.max(0, idx - 8), idx + 1) }));
+    const fbbSubSeries: Series[] = opsSel.map((op) => ({ name: op, color: color(op), data: data.METRICS.fbbSubscribers[op].slice(Math.max(0, idx - 8), idx + 1) }));
     const leagueKpis: KpiDef[] = [
       { label: "Revenue", k: "tn", q: "totalRevenueQ", cum: "totalRevenueCum", type: "flow" },
       { label: "EBITDA", k: "tn", q: "ebitdaQ", cum: "ebitdaCum", type: "flow" },
@@ -981,7 +981,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
         { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.55fr 1fr", gap: "16px", marginTop: "16px" } },
         panel(
           "Total revenue trend",
-          "Rp trillion / quarter · last 12 quarters",
+          "Rp trillion / quarter · last 9 quarters",
           lineChart(tr.series, tr.labels, { height: 250, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), highlight: tr.highlight, tipKey: "ov-rev" }),
           legend(tr.series),
           () => tsvSeries(tr.labels, tr.series),
@@ -1015,15 +1015,15 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
           shareCopy,
         ),
       ),
-      h("div", { style: { marginTop: "16px" } }, panel("Mobile subscribers", "million · last 12 quarters", lineChart(subSeries, subLabels, { height: 230, highlight: subLabels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "ov-subs" }), legend(subSeries), () => tsvSeries(subLabels, subSeries))),
-      h("div", { style: { marginTop: "16px" } }, panel("FBB subscribers", "million · last 12 quarters", lineChart(fbbSubSeries, subLabels, { height: 230, highlight: subLabels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "ov-fbb-subs" }), legend(fbbSubSeries), () => tsvSeries(subLabels, fbbSubSeries))),
+      h("div", { style: { marginTop: "16px" } }, panel("Mobile subscribers", "million · last 9 quarters", lineChart(subSeries, subLabels, { height: 230, highlight: subLabels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "ov-subs" }), legend(subSeries), () => tsvSeries(subLabels, subSeries))),
+      h("div", { style: { marginTop: "16px" } }, panel("FBB subscribers", "million · last 9 quarters", lineChart(fbbSubSeries, subLabels, { height: 230, highlight: subLabels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "ov-fbb-subs" }), legend(fbbSubSeries), () => tsvSeries(subLabels, fbbSubSeries))),
       h("div", { style: { marginTop: "16px" } }, leagueTable(leagueKpis)),
     );
   }
 
   function financials() {
     const idx = qi();
-    const start = Math.max(0, idx - 11);
+    const start = Math.max(0, idx - 8);
     const labels = data.QUARTERS.slice(start, idx + 1);
     const opsSel = selectedOps();
     const ser = (key: string): Series[] => opsSel.map((op) => ({ name: op, color: color(op), data: data.METRICS[key][op].slice(start, idx + 1) }));
@@ -1058,7 +1058,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
 
   function subscribers() {
     const idx = qi();
-    const start = Math.max(0, idx - 11);
+    const start = Math.max(0, idx - 8);
     const labels = data.QUARTERS.slice(start, idx + 1);
     const opsSel = selectedOps();
     const ser = (key: string): Series[] => opsSel.map((op) => ({ name: op, color: color(op), data: data.METRICS[key][op].slice(start, idx + 1) }));
@@ -1120,7 +1120,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       h(
         "div",
         { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" } },
-        panel("Mobile subscribers", "million · last 12 quarters", lineChart(ser("totalUser"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "sub-mob" }), legend(ser("totalUser")), () => tsvSeries(labels, ser("totalUser"))),
+        panel("Mobile subscribers", "million · last 9 quarters", lineChart(ser("totalUser"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "sub-mob" }), legend(ser("totalUser")), () => tsvSeries(labels, ser("totalUser"))),
         panel("Prepaid vs postpaid mix", periodTitle() + " · share of base", h("div", { style: { display: "flex", gap: "18px", flexWrap: "wrap", padding: "6px 0" } }, ppPanels), h("div", { style: { fontSize: "10.5px", color: "#9AA8B6" } }, "solid = prepaid · faded = postpaid"), mixCopy),
       ),
       h(
@@ -1162,11 +1162,11 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       h(
         "div",
         { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", marginTop: "16px" } },
-        panel("Prepaid subscribers", "million · last 12 quarters", lineChart(ser("prepaidUser"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "sub-prepaid" }), legend(ser("prepaidUser")), () => tsvSeries(labels, ser("prepaidUser"))),
-        panel("Postpaid subscribers", "million · last 12 quarters", lineChart(ser("postpaidUser"), labels, { height: 240, zero: true, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(1), vfmt: vM(), tipKey: "sub-postpaid" }), legend(ser("postpaidUser")), () => tsvSeries(labels, ser("postpaidUser"))),
-        panel("Blended ARPU trend", "Rp thousand · last 12 quarters", lineChart(ser(blendedArpuTrendKey), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vK(), tipKey: "sub-barpu" }), legend(ser(blendedArpuTrendKey)), () => tsvSeries(labels, ser(blendedArpuTrendKey))),
-        panel("FBB subscribers trend", "million · last 12 quarters", lineChart(ser("fbbSubscribers"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "sub-fbb-subs" }), legend(ser("fbbSubscribers")), () => tsvSeries(labels, ser("fbbSubscribers"))),
-        panel("FBB ARPU trend", "Rp thousand · last 12 quarters", lineChart(ser(fbbArpuTrendKey), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vK(), tipKey: "sub-fbb-arpu" }), legend(ser(fbbArpuTrendKey)), () => tsvSeries(labels, ser(fbbArpuTrendKey))),
+        panel("Prepaid subscribers", "million · last 9 quarters", lineChart(ser("prepaidUser"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "sub-prepaid" }), legend(ser("prepaidUser")), () => tsvSeries(labels, ser("prepaidUser"))),
+        panel("Postpaid subscribers", "million · last 9 quarters", lineChart(ser("postpaidUser"), labels, { height: 240, zero: true, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(1), vfmt: vM(), tipKey: "sub-postpaid" }), legend(ser("postpaidUser")), () => tsvSeries(labels, ser("postpaidUser"))),
+        panel("Blended ARPU trend", "Rp thousand · last 9 quarters", lineChart(ser(blendedArpuTrendKey), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vK(), tipKey: "sub-barpu" }), legend(ser(blendedArpuTrendKey)), () => tsvSeries(labels, ser(blendedArpuTrendKey))),
+        panel("FBB subscribers trend", "million · last 9 quarters", lineChart(ser("fbbSubscribers"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vM(), tipKey: "sub-fbb-subs" }), legend(ser("fbbSubscribers")), () => tsvSeries(labels, ser("fbbSubscribers"))),
+        panel("FBB ARPU trend", "Rp thousand · last 9 quarters", lineChart(ser(fbbArpuTrendKey), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => v.toFixed(0), vfmt: vK(), tipKey: "sub-fbb-arpu" }), legend(ser(fbbArpuTrendKey)), () => tsvSeries(labels, ser(fbbArpuTrendKey))),
         panel("Data traffic — quarterly", "Petabytes (PB) / quarter", lineChart(ser("payloadQ"), labels, { height: 240, highlight: labels.length - 1, yfmt: (v: number) => (v / 1000).toLocaleString("en-US", { maximumFractionDigits: 0 }), vfmt: vPB(), tipKey: "sub-traffic" }), legend(ser("payloadQ")), () => tsvSeries(labels, ser("payloadQ"))),
         panel("Data traffic — cumulative (YTD)", "Petabytes accumulated year-to-date", lineChart(payloadCumSer, labels, { height: 240, zero: true, highlight: labels.length - 1, yfmt: (v: number) => (v / 1000).toLocaleString("en-US", { maximumFractionDigits: 0 }), vfmt: vPB(), tipKey: "sub-traffic-cum" }), legend(payloadCumSer), () => tsvSeries(labels, payloadCumSer)),
         panel("5G base stations — cumulative", "total sites deployed", lineChart(ser("fiveGBTS"), labels, { height: 240, zero: true, highlight: labels.length - 1, yfmt: (v: number) => (v / 1000).toFixed(0) + "k", vfmt: vN(), tipKey: "sub-5g" }), legend(ser("fiveGBTS")), () => tsvSeries(labels, ser("fiveGBTS"))),
