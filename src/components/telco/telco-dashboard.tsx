@@ -2,6 +2,7 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { TelcoDataset, TelcoOperator } from "@/lib/data/telco-adapter";
+import { EXEC_SUMMARY_CATEGORIES } from "@/lib/data/telco-adapter";
 import type { Series, TipState } from "./chart-tooltip-types";
 import { RefreshIcon } from "@/components/dashboard/icons";
 
@@ -941,6 +942,90 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     );
   }
 
+  function executiveSummaryTable() {
+    const idx = qi();
+    const opsSel = selectedOps();
+    const cellText = (op: TelcoOperator, key: string) => data.EXEC_SUMMARY[op][key]?.[idx] || null;
+    const copyFn = () =>
+      tsvRows(
+        ["Area", ...opsSel],
+        EXEC_SUMMARY_CATEGORIES.map(({ key, label }) => [label, ...opsSel.map((op) => cellText(op, key) || "")]),
+      );
+
+    const body = isMobile
+      ? // Mobile: one card per operator, categories stacked underneath — a
+        // side-by-side table would either force horizontal scrolling or
+        // squeeze paragraph text into unreadably narrow columns.
+        h(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: "14px" } },
+          opsSel.map((op) =>
+            h(
+              "div",
+              { key: op, style: { border: "1px solid #E3E9EF", borderRadius: "10px", padding: "12px 14px" } },
+              h(
+                "div",
+                { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" } },
+                h("span", { style: { width: "10px", height: "10px", borderRadius: "3px", background: color(op) } }),
+                h("span", { style: { fontFamily: "Archivo", fontWeight: 700, fontSize: "14px", color: INK } }, op),
+              ),
+              EXEC_SUMMARY_CATEGORIES.map(({ key, label }) =>
+                h(
+                  "div",
+                  { key, style: { marginTop: "9px" } },
+                  h("div", { style: { fontSize: "10.5px", fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em" } }, label),
+                  h("div", { style: { fontSize: "12.5px", color: INK, lineHeight: 1.5, marginTop: "2px" } }, cellText(op, key) || "—"),
+                ),
+              ),
+            ),
+          ),
+        )
+      : h(
+          "div",
+          { style: { overflowX: "auto" } },
+          h(
+            "table",
+            { style: { width: "100%", borderCollapse: "collapse", minWidth: "760px", tableLayout: "fixed" } },
+            h(
+              "colgroup",
+              null,
+              h("col", { style: { width: "150px" } }),
+              opsSel.map((op) => h("col", { key: op })),
+            ),
+            h(
+              "thead",
+              null,
+              h(
+                "tr",
+                null,
+                h("th", { style: { textAlign: "left", padding: "9px 14px", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", color: MUTED, fontWeight: 600, borderBottom: "1px solid #E3E9EF" } }, "Area"),
+                opsSel.map((op) => h("th", { key: op, style: { textAlign: "left", padding: "9px 14px", fontSize: "12.5px", color: INK, fontWeight: 700, borderBottom: "2px solid " + color(op) } }, op)),
+              ),
+            ),
+            h(
+              "tbody",
+              null,
+              EXEC_SUMMARY_CATEGORIES.map(({ key, label }, ri) =>
+                h(
+                  "tr",
+                  { key, style: { background: ri % 2 ? "#FAFBFC" : "#fff" } },
+                  h("td", { style: { padding: "10px 14px", fontSize: "12.5px", fontWeight: 700, color: INK, verticalAlign: "top" } }, label),
+                  opsSel.map((op) =>
+                    h(
+                      "td",
+                      { key: op, style: { padding: "10px 14px", fontSize: "12.5px", color: INK, lineHeight: 1.5, verticalAlign: "top" } },
+                      cellText(op, key) || h("span", { style: { color: "#B7C1CC" } }, "—"),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    return h("div", { style: { marginBottom: "16px" } }, panel("Executive summary", "Commentary · " + periodTitle(), body, null, copyFn));
+  }
+
   function overview() {
     const idx = qi();
     const opsSel = selectedOps();
@@ -970,6 +1055,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     return h(
       "div",
       null,
+      executiveSummaryTable(),
       h(
         "div",
         { style: { fontFamily: "Archivo", fontWeight: 700, fontSize: "13px", color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px" } },

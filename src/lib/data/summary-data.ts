@@ -92,6 +92,9 @@ const OPERATOR_ALIASES: Record<string, string> = {
   // Subscribers") are entered under "XLSmart" instead — fold them into the
   // same bucket so they aren't silently dropped.
   XLSmart: "XLS",
+  // The executive-summary commentary block at the bottom of the sheet uses
+  // short operator codes instead of the full names used everywhere else.
+  TSEL: "Telkomsel",
 };
 
 function normalizeOperator(raw: string): string {
@@ -115,10 +118,21 @@ export interface MetricInfo {
   views: SeriesView[];
 }
 
+// Executive-summary commentary rows (Metrics column === "Commentary") are
+// free text per operator/category/quarter, not numbers — parsed separately
+// from the numeric series above so real text isn't run through
+// parseNumericCell and silently nulled out.
+export interface CommentarySeries {
+  operator: string;
+  category: string;
+  values: (string | null)[];
+}
+
 export interface SummaryData {
   quarters: string[];
   operators: string[];
   series: SummarySeries[];
+  commentary: CommentarySeries[];
   metrics: MetricInfo[];
   fetchedAt: string;
   sourceUrl: string;
@@ -164,6 +178,7 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
   });
 
   const series: SummarySeries[] = [];
+  const commentary: CommentarySeries[] = [];
   const operatorOrder: string[] = [];
   const seenOperators = new Set<string>();
 
@@ -175,6 +190,20 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
 
     const operator = normalizeOperator(operatorRaw);
     const unit = cleanLabel((row[metricsCol] ?? "").trim());
+
+    if (unit.toLowerCase() === "commentary") {
+      const values = quarterCols.map((c) => {
+        const raw = (row[c] ?? "").trim();
+        return raw === "" ? null : raw;
+      });
+      commentary.push({ operator, category: cleanLabel(kpiRaw), values });
+      if (!seenOperators.has(operator)) {
+        seenOperators.add(operator);
+        operatorOrder.push(operator);
+      }
+      continue;
+    }
+
     const { baseName, view } = splitKpi(kpiRaw);
     const values = quarterCols.map((c) => parseNumericCell(row[c]));
 
@@ -197,7 +226,7 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
     .map(([baseName, v]) => ({ baseName, unit: v.unit, views: [...v.views] }))
     .sort((a, b) => a.baseName.localeCompare(b.baseName));
 
-  return { quarters, operators: operatorOrder, series, metrics };
+  return { quarters, operators: operatorOrder, series, commentary, metrics };
 }
 
 // Runs in the BROWSER, not on the server: Google's gviz endpoint reflects

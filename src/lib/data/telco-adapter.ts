@@ -17,7 +17,20 @@ export interface TelcoDataset {
   OPERATORS: TelcoOperator[];
   METRICS: Record<string, Record<TelcoOperator, (number | null)[]>>;
   BREAKDOWN: Record<TelcoOperator, { components: BreakdownComponent[] }>;
+  // Executive-summary commentary, per operator and category, one text value
+  // per quarter (null where the sheet cell is still empty).
+  EXEC_SUMMARY: Record<TelcoOperator, Record<string, (string | null)[]>>;
 }
+
+// Display order + label for the executive-summary table, paired with the
+// exact category text used in the sheet's commentary rows (the lookup key).
+export const EXEC_SUMMARY_CATEGORIES: { key: string; label: string }[] = [
+  { key: "Headlines", label: "Headline" },
+  { key: "Strength", label: "Strengths" },
+  { key: "Weakness", label: "Weaknesses" },
+  { key: "Management Explanation", label: "Management explanation" },
+  { key: "Overall Assessment", label: "Overall assessment" },
+];
 
 function zeros(n: number): (number | null)[] {
   return new Array(n).fill(null);
@@ -31,6 +44,17 @@ const XLSMART_SHEET_NAME = "XLS";
 function findRaw(data: SummaryData, operator: string, baseName: string, view: SeriesView): (number | null)[] {
   const s = data.series.find((r) => r.operator === operator && r.baseName === baseName && r.view === view);
   return s ? s.values : zeros(data.quarters.length);
+}
+
+function findCommentary(data: SummaryData, operator: string, category: string): (string | null)[] {
+  const s = data.commentary.find((r) => r.operator === operator && r.category === category);
+  return s ? s.values : new Array(data.quarters.length).fill(null);
+}
+
+function buildExecSummaryFor(data: SummaryData, sheetOperator: string): Record<string, (string | null)[]> {
+  const out: Record<string, (string | null)[]> = {};
+  for (const { key } of EXEC_SUMMARY_CATEGORIES) out[key] = findCommentary(data, sheetOperator, key);
+  return out;
 }
 
 function toFraction(values: (number | null)[]): (number | null)[] {
@@ -143,5 +167,11 @@ export function buildTelcoDataset(data: SummaryData): TelcoDataset {
     },
   };
 
-  return { QUARTERS: q, OPERATORS, METRICS, BREAKDOWN };
+  const EXEC_SUMMARY: TelcoDataset["EXEC_SUMMARY"] = {
+    Telkomsel: buildExecSummaryFor(data, "Telkomsel"),
+    Indosat: buildExecSummaryFor(data, "Indosat/IOH"),
+    XLSmart: buildExecSummaryFor(data, XLSMART_SHEET_NAME),
+  };
+
+  return { QUARTERS: q, OPERATORS, METRICS, BREAKDOWN, EXEC_SUMMARY };
 }
