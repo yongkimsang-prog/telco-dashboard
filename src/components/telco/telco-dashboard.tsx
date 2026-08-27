@@ -974,7 +974,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
                   "div",
                   { key, style: { marginTop: "9px" } },
                   h("div", { style: { fontSize: "10.5px", fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.04em" } }, label),
-                  h("div", { style: { fontSize: "12.5px", color: INK, lineHeight: 1.5, marginTop: "2px" } }, cellText(op, key) || "—"),
+                  h("div", { style: { fontSize: "12.5px", color: INK, lineHeight: 1.6, marginTop: "2px", whiteSpace: "pre-line" } }, cellText(op, key) || "—"),
                 ),
               ),
             ),
@@ -1013,7 +1013,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
                   opsSel.map((op) =>
                     h(
                       "td",
-                      { key: op, style: { padding: "10px 14px", fontSize: "12.5px", color: INK, lineHeight: 1.5, verticalAlign: "top" } },
+                      { key: op, style: { padding: "10px 14px", fontSize: "12.5px", color: INK, lineHeight: 1.6, verticalAlign: "top", whiteSpace: "pre-line" } },
                       cellText(op, key) || h("span", { style: { color: "#B7C1CC" } }, "—"),
                     ),
                   ),
