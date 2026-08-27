@@ -26,7 +26,7 @@ export interface TelcoDataset {
 // exact category text used in the sheet's commentary rows (the lookup key).
 export const EXEC_SUMMARY_CATEGORIES: { key: string; label: string }[] = [
   { key: "Headlines", label: "Headline" },
-  { key: "Strength", label: "Strengths" },
+  { key: "Strength", label: "Strength" },
   { key: "Weakness", label: "Weaknesses" },
   { key: "Management Explanation", label: "Management explanation" },
   { key: "Overall Assessment", label: "Overall assessment" },
