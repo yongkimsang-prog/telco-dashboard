@@ -6,10 +6,22 @@
 // ---------------------------------------------------------------------------
 const SUMMARY_SHEET_ID = "1rGeakuFynUJBPMl1yj6PbAcOGzt8Rjo5wTTRWLLKOU0";
 
+// The executive-summary commentary lives on its own tab, separate from the
+// main numeric tab (gid=0). This is required, not just tidier: Google's
+// gviz export infers ONE data type per column from the whole column's
+// content, so free text sharing a quarter column with 5+ years of numeric
+// rows gets silently dropped from the export — moving it to a tab that's
+// 100% text avoids that entirely.
+const EXEC_SUMMARY_TAB_GID = "1070102048";
+
 function summaryCsvUrl(): string {
   // Single-tab sheet — the default (first) tab is the Summary data, so no
   // `&sheet=` name lookup is needed (robust to the tab being renamed).
   return `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
+}
+
+function commentaryCsvUrl(): string {
+  return `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${EXEC_SUMMARY_TAB_GID}`;
 }
 
 // --- Minimal RFC4180 CSV parser (quoted fields, embedded commas, "" escape) --
@@ -152,7 +164,7 @@ function splitKpi(rawKpi: string): { baseName: string; view: SeriesView } {
 // shifted every value by one column when positions were hardcoded.
 const QUARTER_LABEL_RE = /^[1-4]q\d{4}$/i;
 
-function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "sourceUrl"> {
+function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "sourceUrl" | "commentary"> {
   const rows = parseCsv(csvText);
 
   const headerIdx = rows.findIndex((r) => r.some((cell) => (cell ?? "").trim().toLowerCase() === "operator"));
@@ -178,7 +190,6 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
   });
 
   const series: SummarySeries[] = [];
-  const commentary: CommentarySeries[] = [];
   const operatorOrder: string[] = [];
   const seenOperators = new Set<string>();
 
@@ -190,20 +201,6 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
 
     const operator = normalizeOperator(operatorRaw);
     const unit = cleanLabel((row[metricsCol] ?? "").trim());
-
-    if (unit.toLowerCase() === "commentary") {
-      const values = quarterCols.map((c) => {
-        const raw = (row[c] ?? "").trim();
-        return raw === "" ? null : raw;
-      });
-      commentary.push({ operator, category: cleanLabel(kpiRaw), values });
-      if (!seenOperators.has(operator)) {
-        seenOperators.add(operator);
-        operatorOrder.push(operator);
-      }
-      continue;
-    }
-
     const { baseName, view } = splitKpi(kpiRaw);
     const values = quarterCols.map((c) => parseNumericCell(row[c]));
 
@@ -226,7 +223,46 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
     .map(([baseName, v]) => ({ baseName, unit: v.unit, views: [...v.views] }))
     .sort((a, b) => a.baseName.localeCompare(b.baseName));
 
-  return { quarters, operators: operatorOrder, series, commentary, metrics };
+  return { quarters, operators: operatorOrder, series, metrics };
+}
+
+// The commentary tab has its own (much shorter) header row — just Operator |
+// KPI | Metrics | whichever quarter columns actually have commentary so far
+// — so its quarter columns are mapped by label into the master quarters
+// list (from the main tab) rather than assumed to line up positionally.
+function parseCommentarySheet(csvText: string, masterQuarters: string[]): CommentarySeries[] {
+  const rows = parseCsv(csvText);
+  const headerIdx = rows.findIndex((r) => r.some((cell) => (cell ?? "").trim().toLowerCase() === "operator"));
+  if (headerIdx === -1) return [];
+
+  const header = rows[headerIdx];
+  const operatorCol = header.findIndex((c) => (c ?? "").trim().toLowerCase() === "operator");
+  const kpiCol = header.findIndex((c) => (c ?? "").trim().toLowerCase() === "kpi");
+  if (operatorCol === -1 || kpiCol === -1) return [];
+
+  const colToMasterIdx = new Map<number, number>();
+  header.forEach((cell, c) => {
+    const label = (cell ?? "").trim();
+    const masterIdx = masterQuarters.findIndex((q) => q.toLowerCase() === label.toLowerCase());
+    if (masterIdx !== -1) colToMasterIdx.set(c, masterIdx);
+  });
+
+  const commentary: CommentarySeries[] = [];
+  for (let r = headerIdx + 1; r < rows.length; r++) {
+    const row = rows[r];
+    const operatorRaw = (row[operatorCol] ?? "").trim();
+    const kpiRaw = (row[kpiCol] ?? "").trim();
+    if (!operatorRaw || !kpiRaw) continue;
+
+    const operator = normalizeOperator(operatorRaw);
+    const values: (string | null)[] = new Array(masterQuarters.length).fill(null);
+    colToMasterIdx.forEach((masterIdx, col) => {
+      const raw = (row[col] ?? "").trim();
+      values[masterIdx] = raw === "" ? null : raw;
+    });
+    commentary.push({ operator, category: cleanLabel(kpiRaw), values });
+  }
+  return commentary;
 }
 
 // Runs in the BROWSER, not on the server: Google's gviz endpoint reflects
@@ -234,8 +270,7 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
 // fetch from this Worker is blocked by the hosting platform for this
 // workspace's plan, so this is not merely a style choice.)
 export async function fetchSummaryData(): Promise<SummaryData> {
-  const url = summaryCsvUrl();
-  const response = await fetch(url);
+  const response = await fetch(summaryCsvUrl());
   if (!response.ok) {
     throw new Error(
       `Failed to load the live Google Sheet (HTTP ${response.status}). Make sure the sheet is shared as "Anyone with the link — Viewer".`,
@@ -243,8 +278,23 @@ export async function fetchSummaryData(): Promise<SummaryData> {
   }
   const csvText = await response.text();
   const parsed = parseSummarySheet(csvText);
+
+  // The commentary tab is fetched separately and best-effort: if it's
+  // missing, renamed, or briefly unreachable, the rest of the dashboard
+  // shouldn't break over it — commentary just shows as empty.
+  let commentary: CommentarySeries[] = [];
+  try {
+    const commentaryResponse = await fetch(commentaryCsvUrl());
+    if (commentaryResponse.ok) {
+      commentary = parseCommentarySheet(await commentaryResponse.text(), parsed.quarters);
+    }
+  } catch {
+    /* ignore — commentary is non-critical */
+  }
+
   return {
     ...parsed,
+    commentary,
     fetchedAt: new Date().toISOString(),
     sourceUrl: `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/edit`,
   };
