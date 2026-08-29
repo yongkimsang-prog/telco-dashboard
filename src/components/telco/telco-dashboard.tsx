@@ -30,6 +30,9 @@ interface KpiDef {
   type: "flow" | "ratio" | "stock";
   kind?: string;
   k?: string;
+  // When true, an increase is bad news (e.g. expenses) — the growth chip's
+  // arrow still points the real direction, only its red/green color flips.
+  invert?: boolean;
 }
 
 interface Props {
@@ -127,9 +130,13 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     return { text: (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%", dir: pct > 0.05 ? "up" : pct < -0.05 ? "down" : "flat" };
   }
 
-  function chip(g: Growth | null, sz?: number) {
+  // `invertColor` flips only the good/bad color coding (e.g. for expense
+  // lines, where an increase is bad news) — the arrow still points the
+  // actual direction of the number, only the red/green sense is swapped.
+  function chip(g: Growth | null, sz?: number, invertColor?: boolean) {
     if (!g) return h("span", { style: { color: "#9AA8B6", fontSize: (sz || 11) + "px" } }, "n/a");
-    const c = g.dir === "up" ? { f: "#15803D", b: "#E6F4EC" } : g.dir === "down" ? { f: "#C32A2A", b: "#FBECEC" } : { f: "#6B7888", b: "#EEF1F5" };
+    const colorDir = !invertColor ? g.dir : g.dir === "up" ? "down" : g.dir === "down" ? "up" : "flat";
+    const c = colorDir === "up" ? { f: "#15803D", b: "#E6F4EC" } : colorDir === "down" ? { f: "#C32A2A", b: "#FBECEC" } : { f: "#6B7888", b: "#EEF1F5" };
     const ar = g.dir === "up" ? "▲" : g.dir === "down" ? "▼" : "▬";
     return h(
       "span",
@@ -907,10 +914,10 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
                 "div",
                 { style: { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" } },
                 h("span", { style: { fontSize: "13px", fontWeight: 600, color: INK, fontVariantNumeric: "tabular-nums" } }, fmt(dd.value, k.k)),
-                chip(g, 10),
+                chip(g, 10, k.invert),
               ),
             ),
-            h("td", { key: op + "-mom", style: { padding: "9px 14px", textAlign: "right", whiteSpace: "nowrap" } }, chip(mg, 10)),
+            h("td", { key: op + "-mom", style: { padding: "9px 14px", textAlign: "right", whiteSpace: "nowrap" } }, chip(mg, 10, k.invert)),
           ];
         }),
       );
@@ -1054,7 +1061,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     const leagueKpis: KpiDef[] = [
       { label: "Revenue", k: "tn", q: "totalRevenueQ", cum: "totalRevenueCum", type: "flow" },
       { label: "Digital business revenue", k: "tn", q: "digitalBusinessRevenueQ", cum: "digitalBusinessRevenueCum", type: "flow" },
-      { label: "Operating expenses", k: "tn", q: "opexQ", cum: "opexCum", type: "flow" },
+      { label: "Operating expenses", k: "tn", q: "opexQ", cum: "opexCum", type: "flow", invert: true },
       { label: "EBITDA", k: "tn", q: "ebitdaQ", cum: "ebitdaCum", type: "flow" },
       { label: "EBITDA margin", k: "pct", q: "ebitdaMarginQ", cum: "ebitdaMarginCum", type: "ratio" },
       { label: "Net income", k: "tn", q: "patQ", cum: "patCum", type: "flow" },
