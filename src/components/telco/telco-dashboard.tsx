@@ -1053,6 +1053,8 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     const fbbSubSeries: Series[] = opsSel.map((op) => ({ name: op, color: color(op), data: data.METRICS.fbbSubscribers[op].slice(Math.max(0, idx - 8), idx + 1) }));
     const leagueKpis: KpiDef[] = [
       { label: "Revenue", k: "tn", q: "totalRevenueQ", cum: "totalRevenueCum", type: "flow" },
+      { label: "Digital business revenue", k: "tn", q: "digitalBusinessRevenueQ", cum: "digitalBusinessRevenueCum", type: "flow" },
+      { label: "Operating expenses", k: "tn", q: "opexQ", cum: "opexCum", type: "flow" },
       { label: "EBITDA", k: "tn", q: "ebitdaQ", cum: "ebitdaCum", type: "flow" },
       { label: "EBITDA margin", k: "pct", q: "ebitdaMarginQ", cum: "ebitdaMarginCum", type: "ratio" },
       { label: "Net income", k: "tn", q: "patQ", cum: "patCum", type: "flow" },

@@ -101,9 +101,27 @@ export function buildTelcoDataset(data: SummaryData): TelcoDataset {
     XLSmart: scale(fbbSubscribersRaw.XLSmart, 1 / 1000),
   };
 
+  // "Digital Business Revenue" is the same line item for Telkomsel and
+  // Indosat/IOH (sheet KPI "Digital Business"), but XLSmart reports it under
+  // a differently-named row ("Data Revenue and Digital Revenue") — so it's
+  // assembled manually per-operator rather than via the generic metric()
+  // helper, which assumes one shared baseName across all three.
+  const digitalBusinessRevenueQ: Record<TelcoOperator, (number | null)[]> = {
+    Telkomsel: findRaw(data, "Telkomsel", "Digital Business", "Quarterly"),
+    Indosat: findRaw(data, "Indosat/IOH", "Digital Business", "Quarterly"),
+    XLSmart: findRaw(data, XLSMART_SHEET_NAME, "Data Revenue and Digital Revenue", "Quarterly"),
+  };
+  const digitalBusinessRevenueCum: Record<TelcoOperator, (number | null)[]> = {
+    Telkomsel: findRaw(data, "Telkomsel", "Digital Business", "Cumulative"),
+    Indosat: findRaw(data, "Indosat/IOH", "Digital Business", "Cumulative"),
+    XLSmart: findRaw(data, XLSMART_SHEET_NAME, "Data Revenue and Digital Revenue", "Cumulative"),
+  };
+
   const METRICS: TelcoDataset["METRICS"] = {
     totalRevenueQ: metric(data, "Total Revenue", "Quarterly"),
     totalRevenueCum: metric(data, "Total Revenue", "Cumulative"),
+    digitalBusinessRevenueQ,
+    digitalBusinessRevenueCum,
     ebitdaQ: metric(data, "EBITDA", "Quarterly"),
     ebitdaCum: metric(data, "EBITDA", "Cumulative"),
     ebitdaMarginQ: metric(data, "EBITDA Margin", "Quarterly", { pct: true }),
@@ -126,6 +144,7 @@ export function buildTelcoDataset(data: SummaryData): TelcoDataset {
     fiveGBTS: metric(data, "5G BTS", "Snapshot"),
     totalBTS: metric(data, "Total BTS", "Snapshot"),
     opexQ: metric(data, "Opex", "Quarterly"),
+    opexCum: metric(data, "Opex", "Cumulative"),
     // "Expenses" (as opposed to "Expenses+Tax+Finance+Depreciation") is the
     // sheet's total-expenses figure that includes depreciation & other
     // expenses but excludes finance cost.
