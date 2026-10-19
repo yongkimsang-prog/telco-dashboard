@@ -62,8 +62,10 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
   const [tip, setTipState] = useState<TipState | null>(null);
   const [showLabels, setShowLabels] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
+  const [imgCopied, setImgCopied] = useState<string | null>(null);
   const tsigRef = useRef<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imgCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 720 : false));
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 720px)");
@@ -272,6 +274,82 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
             { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none" },
             h("rect", { x: 8, y: 8, width: 12, height: 12, rx: 2.5, stroke: "currentColor", strokeWidth: 2 }),
             h("path", { d: "M16 5.5H6.5A1.5 1.5 0 005 7v10", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" }),
+          ),
+    );
+  }
+
+  function imageCopyBtn(id: string) {
+    const done = imgCopied === id;
+    return h(
+      "button",
+      {
+        title: "Copy chart as image — paste directly into PowerPoint",
+        onClick: async (e: React.MouseEvent<HTMLButtonElement>) => {
+          const panelEl = (e.currentTarget as HTMLButtonElement).closest("[data-img-panel]") as HTMLElement | null;
+          const svg = panelEl?.querySelector("[data-chart-body] svg") as SVGSVGElement | null;
+          if (!svg) return;
+          try {
+            const cs = getComputedStyle(document.documentElement);
+            const resolved = svg.outerHTML.replace(/var\(([^),\s]+)[^)]*\)/g, (_: string, v: string) =>
+              cs.getPropertyValue(v.trim()).trim() || "#888888",
+            );
+            const blob = new Blob([resolved], { type: "image/svg+xml;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const pngBlob = await new Promise<Blob>((res, rej) => {
+              const img = new Image();
+              img.onload = () => {
+                const c = document.createElement("canvas");
+                c.width = svg.clientWidth || 800;
+                c.height = svg.clientHeight || 300;
+                const ctx = c.getContext("2d")!;
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, c.width, c.height);
+                ctx.drawImage(img, 0, 0, c.width, c.height);
+                URL.revokeObjectURL(url);
+                c.toBlob((b) => (b ? res(b) : rej(new Error("empty"))), "image/png");
+              };
+              img.onerror = (err) => {
+                URL.revokeObjectURL(url);
+                rej(err);
+              };
+              img.src = url;
+            });
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
+            setImgCopied(id);
+            if (imgCopyTimerRef.current) clearTimeout(imgCopyTimerRef.current);
+            imgCopyTimerRef.current = setTimeout(() => setImgCopied((c) => (c === id ? null : c)), 1300);
+          } catch {
+            /* silently fail */
+          }
+        },
+        style: {
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "28px",
+          height: "28px",
+          borderRadius: "7px",
+          border: "1px solid " + (done ? "#15803D" : "#E0E6ED"),
+          background: done ? "#E6F4EC" : "#fff",
+          color: done ? "#15803D" : "#8593A2",
+          cursor: "pointer",
+          flex: "0 0 auto",
+          transition: "all .15s",
+          padding: 0,
+        },
+      },
+      done
+        ? h(
+            "svg",
+            { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none" },
+            h("path", { d: "M5 12.5l4.5 4.5L19 7", stroke: "currentColor", strokeWidth: 2.4, strokeLinecap: "round", strokeLinejoin: "round" }),
+          )
+        : h(
+            "svg",
+            { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none" },
+            h("rect", { x: 3, y: 5, width: 18, height: 14, rx: 2, stroke: "currentColor", strokeWidth: 1.8 }),
+            h("circle", { cx: 12, cy: 12, r: 3.5, stroke: "currentColor", strokeWidth: 1.6 }),
+            h("path", { d: "M8.5 5L10 3h4l1.5 2", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }),
           ),
     );
   }
@@ -767,7 +845,7 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
   function panel(title: string, sub: string | null, body: any, extra: any, copyFn?: () => string) {
     return h(
       "div",
-      { style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "16px 18px 18px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)" } },
+      { "data-img-panel": "true", style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "16px 18px 18px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)" } },
       h(
         "div",
         { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "12px", flexWrap: "wrap" } },
@@ -777,9 +855,9 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
           h("div", { style: { fontFamily: "Archivo", fontWeight: 700, fontSize: "14.5px", color: INK, letterSpacing: "-0.005em" } }, title),
           sub ? h("div", { style: { fontSize: "11.5px", color: MUTED, marginTop: "2px" } }, sub) : null,
         ),
-        h("div", { style: { display: "flex", alignItems: "center", gap: "10px", flex: "0 0 auto" } }, extra || null, copyFn ? copyBtn(title, copyFn) : null),
+        h("div", { style: { display: "flex", alignItems: "center", gap: "10px", flex: "0 0 auto" } }, extra || null, copyFn ? imageCopyBtn(title) : null, copyFn ? copyBtn(title, copyFn) : null),
       ),
-      body,
+      h("div", { "data-chart-body": "true" }, body),
     );
   }
 
