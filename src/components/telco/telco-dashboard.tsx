@@ -1028,6 +1028,16 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       if (v != null && Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
     });
     maxAbs = maxAbs || 1;
+    const cardId = "sc-" + kpi.q;
+    const copyFn = () =>
+      tsvRows(
+        ["Operator", kpi.label ?? kpi.q, "YoY Change"],
+        opsSel.map((op) => {
+          const dd = dataK[op];
+          const g = growth(dd.value, dd.yoyPrior, ratio);
+          return [op, dd.value != null ? fmt(dd.value, kpi.kind) : "—", g?.text ?? "—"];
+        }),
+      );
     const rows = opsSel.map((op, i) => {
       const dd = dataK[op];
       const g = growth(dd.value, dd.yoyPrior, ratio);
@@ -1060,12 +1070,17 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
     });
     return h(
       "div",
-      { style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "14px 16px 13px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)", display: "flex", flexDirection: "column", flex: "1 1 auto", width: "100%", boxSizing: "border-box" } },
+      { "data-img-panel": "true", "data-capture-full": "true", style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "14px 16px 13px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)", display: "flex", flexDirection: "column", flex: "1 1 auto", width: "100%", boxSizing: "border-box" } },
       h(
         "div",
-        { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px", marginBottom: "4px" } },
-        h("div", { style: { fontSize: "12px", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" } }, kpi.label),
-        h("div", { style: { fontSize: "10.5px", color: "#9AA8B6", whiteSpace: "nowrap", flex: "0 0 auto" } }, kpi.unit),
+        { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "4px" } },
+        h(
+          "div",
+          null,
+          h("div", { "data-panel-title": "true", style: { fontSize: "12px", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" } }, kpi.label),
+          h("div", { style: { fontSize: "10.5px", color: "#9AA8B6", whiteSpace: "nowrap" } }, kpi.unit),
+        ),
+        h("div", { style: { display: "flex", alignItems: "center", gap: "6px", flex: "0 0 auto" } }, imageCopyBtn(cardId), copyBtn(cardId, copyFn)),
       ),
       h("div", { style: { fontSize: "10px", color: "#A7B3C0", marginBottom: "2px" } }, "value · Δ YoY"),
       rows,
