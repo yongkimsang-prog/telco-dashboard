@@ -289,37 +289,44 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
           const svg = panelEl?.querySelector("[data-chart-body] svg") as SVGSVGElement | null;
           if (!svg) return;
           try {
+            const rect = svg.getBoundingClientRect();
+            const w = Math.round(rect.width) || svg.clientWidth || 800;
+            const ht = Math.round(rect.height) || svg.clientHeight || 300;
+
+            const clone = svg.cloneNode(true) as SVGSVGElement;
+            clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+            clone.setAttribute("width", String(w));
+            clone.setAttribute("height", String(ht));
+
             const cs = getComputedStyle(document.documentElement);
-            const resolved = svg.outerHTML.replace(/var\(([^),\s]+)[^)]*\)/g, (_: string, v: string) =>
+            const resolved = clone.outerHTML.replace(/var\(([^),\s]+)[^)]*\)/g, (_: string, v: string) =>
               cs.getPropertyValue(v.trim()).trim() || "#888888",
             );
-            const blob = new Blob([resolved], { type: "image/svg+xml;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
+
+            const dataUrl = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(resolved)));
+
             const pngBlob = await new Promise<Blob>((res, rej) => {
               const img = new Image();
               img.onload = () => {
                 const c = document.createElement("canvas");
-                c.width = svg.clientWidth || 800;
-                c.height = svg.clientHeight || 300;
+                c.width = w * 2;
+                c.height = ht * 2;
                 const ctx = c.getContext("2d")!;
+                ctx.scale(2, 2);
                 ctx.fillStyle = "#ffffff";
-                ctx.fillRect(0, 0, c.width, c.height);
-                ctx.drawImage(img, 0, 0, c.width, c.height);
-                URL.revokeObjectURL(url);
-                c.toBlob((b) => (b ? res(b) : rej(new Error("empty"))), "image/png");
+                ctx.fillRect(0, 0, w, ht);
+                ctx.drawImage(img, 0, 0, w, ht);
+                c.toBlob((b) => (b ? res(b) : rej(new Error("canvas toBlob returned null"))), "image/png");
               };
-              img.onerror = (err) => {
-                URL.revokeObjectURL(url);
-                rej(err);
-              };
-              img.src = url;
+              img.onerror = (err) => rej(err);
+              img.src = dataUrl;
             });
             await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
             setImgCopied(id);
             if (imgCopyTimerRef.current) clearTimeout(imgCopyTimerRef.current);
             imgCopyTimerRef.current = setTimeout(() => setImgCopied((c) => (c === id ? null : c)), 1300);
-          } catch {
-            /* silently fail */
+          } catch (err) {
+            console.error("Copy chart as image failed:", err);
           }
         },
         style: {
