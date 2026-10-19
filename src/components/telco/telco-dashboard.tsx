@@ -289,38 +289,106 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
           const svg = panelEl?.querySelector("[data-chart-body] svg") as SVGSVGElement | null;
           if (!svg) return;
           try {
-            const rect = svg.getBoundingClientRect();
-            const w = Math.round(rect.width) || svg.clientWidth || 800;
-            const ht = Math.round(rect.height) || svg.clientHeight || 300;
+            const svgRect = svg.getBoundingClientRect();
+            const w = Math.round(svgRect.width) || svg.clientWidth || 800;
+            const chartH = Math.round(svgRect.height) || svg.clientHeight || 300;
 
+            // Collect header content
+            const titleText = (panelEl!.querySelector("[data-panel-title]") as HTMLElement | null)?.innerText?.trim() ?? "";
+            const subText = (panelEl!.querySelector("[data-panel-sub]") as HTMLElement | null)?.innerText?.trim() ?? "";
+            const legendItems: { color: string; name: string }[] = [];
+            panelEl!.querySelectorAll("[data-legend-item]").forEach((el) => {
+              const color = el.getAttribute("data-legend-item") ?? "";
+              const name = (el.querySelector("span:last-child") as HTMLElement | null)?.innerText?.trim() ?? "";
+              if (color && name) legendItems.push({ color, name });
+            });
+
+            // Layout constants
+            const PAD = 18;
+            const TITLE_H = titleText ? 20 : 0;
+            const SUB_H = subText ? 16 : 0;
+            const LEGEND_H = legendItems.length ? 22 : 0;
+            const GAP_AFTER_HEADER = 14;
+            const headerH = TITLE_H + (subText ? 4 : 0) + SUB_H + (legendItems.length ? 10 : 0) + LEGEND_H + GAP_AFTER_HEADER;
+            const totalH = PAD + headerH + chartH + PAD;
+            const totalW = w + PAD * 2;
+
+            // Build chart SVG as image
             const clone = svg.cloneNode(true) as SVGSVGElement;
             clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
             clone.setAttribute("width", String(w));
-            clone.setAttribute("height", String(ht));
-
+            clone.setAttribute("height", String(chartH));
             const cs = getComputedStyle(document.documentElement);
             const resolved = clone.outerHTML.replace(/var\(([^),\s]+)[^)]*\)/g, (_: string, v: string) =>
               cs.getPropertyValue(v.trim()).trim() || "#888888",
             );
-
-            const dataUrl = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(resolved)));
-
-            const pngBlob = await new Promise<Blob>((res, rej) => {
+            const svgDataUrl = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(resolved)));
+            const chartImg = await new Promise<HTMLImageElement>((res, rej) => {
               const img = new Image();
-              img.onload = () => {
-                const c = document.createElement("canvas");
-                c.width = w * 2;
-                c.height = ht * 2;
-                const ctx = c.getContext("2d")!;
-                ctx.scale(2, 2);
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(0, 0, w, ht);
-                ctx.drawImage(img, 0, 0, w, ht);
-                c.toBlob((b) => (b ? res(b) : rej(new Error("canvas toBlob returned null"))), "image/png");
-              };
-              img.onerror = (err) => rej(err);
-              img.src = dataUrl;
+              img.onload = () => res(img);
+              img.onerror = rej;
+              img.src = svgDataUrl;
             });
+
+            // Draw composite canvas at 2× for sharpness
+            const SCALE = 2;
+            const c = document.createElement("canvas");
+            c.width = totalW * SCALE;
+            c.height = totalH * SCALE;
+            const ctx = c.getContext("2d")!;
+            ctx.scale(SCALE, SCALE);
+
+            // White background
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, totalW, totalH);
+
+            let y = PAD;
+
+            // Title
+            if (titleText) {
+              ctx.font = '700 14.5px "Archivo", "Arial", sans-serif';
+              ctx.fillStyle = "#10202F";
+              ctx.fillText(titleText, PAD, y + 14);
+              y += TITLE_H;
+            }
+
+            // Subtitle
+            if (subText) {
+              y += 4;
+              ctx.font = '11.5px "Arial", sans-serif';
+              ctx.fillStyle = "#67788A";
+              ctx.fillText(subText, PAD, y + 11.5);
+              y += SUB_H;
+            }
+
+            // Legend
+            if (legendItems.length) {
+              y += 10;
+              let lx = PAD;
+              for (const item of legendItems) {
+                // Colored swatch
+                ctx.fillStyle = item.color;
+                ctx.beginPath();
+                ctx.roundRect ? ctx.roundRect(lx, y, 11, 11, 3) : ctx.rect(lx, y, 11, 11);
+                ctx.fill();
+                lx += 11 + 5;
+                // Label
+                ctx.font = '500 12px "Arial", sans-serif';
+                ctx.fillStyle = "#10202F";
+                ctx.fillText(item.name, lx, y + 10);
+                lx += ctx.measureText(item.name).width + 16;
+              }
+              y += LEGEND_H;
+            }
+
+            y += GAP_AFTER_HEADER;
+
+            // Chart
+            ctx.drawImage(chartImg, PAD, y, w, chartH);
+
+            const pngBlob = await new Promise<Blob>((res, rej) =>
+              c.toBlob((b) => (b ? res(b) : rej(new Error("toBlob returned null"))), "image/png"),
+            );
             await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
             setImgCopied(id);
             if (imgCopyTimerRef.current) clearTimeout(imgCopyTimerRef.current);
@@ -837,11 +905,11 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
   function legend(items: { name: string; color: string }[]) {
     return h(
       "div",
-      { style: { display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" } },
+      { "data-panel-legend": "true", style: { display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" } },
       items.map((it, i) =>
         h(
           "div",
-          { key: i, style: { display: "flex", alignItems: "center", gap: "6px" } },
+          { key: i, "data-legend-item": it.color, style: { display: "flex", alignItems: "center", gap: "6px" } },
           h("span", { style: { width: "11px", height: "11px", borderRadius: "3px", background: it.color, display: "inline-block" } }),
           h("span", { style: { fontSize: "12px", color: INK, fontWeight: 500 } }, it.name),
         ),
@@ -859,8 +927,8 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
         h(
           "div",
           null,
-          h("div", { style: { fontFamily: "Archivo", fontWeight: 700, fontSize: "14.5px", color: INK, letterSpacing: "-0.005em" } }, title),
-          sub ? h("div", { style: { fontSize: "11.5px", color: MUTED, marginTop: "2px" } }, sub) : null,
+          h("div", { "data-panel-title": "true", style: { fontFamily: "Archivo", fontWeight: 700, fontSize: "14.5px", color: INK, letterSpacing: "-0.005em" } }, title),
+          sub ? h("div", { "data-panel-sub": "true", style: { fontSize: "11.5px", color: MUTED, marginTop: "2px" } }, sub) : null,
         ),
         h("div", { style: { display: "flex", alignItems: "center", gap: "10px", flex: "0 0 auto" } }, extra || null, copyFn ? imageCopyBtn(title) : null, copyFn ? copyBtn(title, copyFn) : null),
       ),
