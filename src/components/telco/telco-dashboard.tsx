@@ -291,6 +291,24 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
           const svg = panelEl.querySelector("[data-chart-body] svg") as SVGSVGElement | null;
           const chartBody = panelEl.querySelector("[data-chart-body]") as HTMLElement | null;
           try {
+            // --- Full-panel html2canvas path (revenue detail operator cards) ---
+            if (panelEl.hasAttribute("data-capture-full")) {
+              const canvas = await html2canvas(panelEl, {
+                backgroundColor: "#ffffff",
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                ignoreElements: (el) => el.tagName === "BUTTON",
+              });
+              const pngBlob = await new Promise<Blob>((res, rej) =>
+                canvas.toBlob((b) => (b ? res(b) : rej(new Error("toBlob null"))), "image/png"),
+              );
+              await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
+              setImgCopied(id);
+              if (imgCopyTimerRef.current) clearTimeout(imgCopyTimerRef.current);
+              imgCopyTimerRef.current = setTimeout(() => setImgCopied((c) => (c === id ? null : c)), 1300);
+              return;
+            }
             // --- HTML table path (no SVG) ---
             if (!svg && chartBody) {
               const titleText = (panelEl.querySelector("[data-panel-title]") as HTMLElement | null)?.innerText?.trim() ?? "";
@@ -1539,14 +1557,14 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
       const g = growth(tot, prevTot, false);
       return h(
         "div",
-        { key: op, style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "16px 18px 18px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)" } },
+        { key: op, "data-img-panel": "true", "data-capture-full": "true", style: { background: "#fff", border: "1px solid #E3E9EF", borderRadius: "12px", padding: "16px 18px 18px", boxShadow: "0 1px 2px rgba(16,32,47,0.04)" } },
         h(
           "div",
           { style: { display: "flex", alignItems: "center", gap: "9px", marginBottom: "3px" } },
           h("span", { style: { width: "12px", height: "12px", borderRadius: "3px", background: color(op) } }),
           h("span", { style: { fontFamily: "Archivo", fontWeight: 700, fontSize: "15.5px", color: INK } }, op),
           h("span", { style: { fontSize: "11px", color: "#9AA8B6" } }, opSub(op)),
-          h("div", { style: { marginLeft: "auto" } }, copyBtn("rd-" + op, () => tsvSeries(labels, stacks))),
+          h("div", { style: { marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" } }, imageCopyBtn("rd-img-" + op), copyBtn("rd-" + op, () => tsvSeries(labels, stacks))),
         ),
         h(
           "div",
