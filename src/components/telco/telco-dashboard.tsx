@@ -288,8 +288,12 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
         onClick: async (e: React.MouseEvent<HTMLButtonElement>) => {
           const panelEl = (e.currentTarget as HTMLButtonElement).closest("[data-img-panel]") as HTMLElement | null;
           if (!panelEl) return;
-          const svg = panelEl.querySelector("[data-chart-body] svg") as SVGSVGElement | null;
           const chartBody = panelEl.querySelector("[data-chart-body]") as HTMLElement | null;
+          // Only use the fast SVG path when the SVG is a direct child of data-chart-body
+          // (i.e. a pure line/bar chart). Mixed-content bodies (donut + text labels,
+          // HTML tables, bar divs) fall through to html2canvas so nothing is cropped.
+          const directSvg = chartBody?.querySelector(":scope > svg") as SVGSVGElement | null;
+          const svg = directSvg;
           try {
             // --- Full-panel html2canvas path (revenue detail operator cards) ---
             if (panelEl.hasAttribute("data-capture-full")) {
