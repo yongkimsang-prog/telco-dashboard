@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import html2canvas from "html2canvas";
 
 import type { TelcoDataset, TelcoOperator } from "@/lib/data/telco-adapter";
 import { EXEC_SUMMARY_CATEGORIES } from "@/lib/data/telco-adapter";
@@ -286,9 +287,68 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
         title: "Copy chart as image — paste directly into PowerPoint",
         onClick: async (e: React.MouseEvent<HTMLButtonElement>) => {
           const panelEl = (e.currentTarget as HTMLButtonElement).closest("[data-img-panel]") as HTMLElement | null;
-          const svg = panelEl?.querySelector("[data-chart-body] svg") as SVGSVGElement | null;
-          if (!svg) return;
+          if (!panelEl) return;
+          const svg = panelEl.querySelector("[data-chart-body] svg") as SVGSVGElement | null;
+          const chartBody = panelEl.querySelector("[data-chart-body]") as HTMLElement | null;
           try {
+            // --- HTML table path (no SVG) ---
+            if (!svg && chartBody) {
+              const titleText = (panelEl.querySelector("[data-panel-title]") as HTMLElement | null)?.innerText?.trim() ?? "";
+              const subText = (panelEl.querySelector("[data-panel-sub]") as HTMLElement | null)?.innerText?.trim() ?? "";
+
+              const tableCanvas = await html2canvas(chartBody, {
+                backgroundColor: "#ffffff",
+                scale: 2,
+                useCORS: true,
+                logging: false,
+              });
+
+              const PAD = 18;
+              const TITLE_H = titleText ? 20 : 0;
+              const SUB_H = subText ? 16 : 0;
+              const GAP = 12;
+              const headerH = TITLE_H + (subText ? 4 : 0) + SUB_H + GAP;
+              const tw = tableCanvas.width / 2;
+              const th = tableCanvas.height / 2;
+              const totalW = Math.max(tw + PAD * 2, 400);
+              const totalH = PAD + headerH + th + PAD;
+
+              const SCALE = 2;
+              const c = document.createElement("canvas");
+              c.width = totalW * SCALE;
+              c.height = totalH * SCALE;
+              const ctx = c.getContext("2d")!;
+              ctx.scale(SCALE, SCALE);
+              ctx.fillStyle = "#ffffff";
+              ctx.fillRect(0, 0, totalW, totalH);
+
+              let y = PAD;
+              if (titleText) {
+                ctx.font = '700 14.5px "Archivo", "Arial", sans-serif';
+                ctx.fillStyle = "#10202F";
+                ctx.fillText(titleText, PAD, y + 14);
+                y += TITLE_H;
+              }
+              if (subText) {
+                y += 4;
+                ctx.font = '11.5px "Arial", sans-serif';
+                ctx.fillStyle = "#67788A";
+                ctx.fillText(subText, PAD, y + 11.5);
+                y += SUB_H;
+              }
+              y += GAP;
+              ctx.drawImage(tableCanvas, PAD, y, tw, th);
+
+              const pngBlob = await new Promise<Blob>((res, rej) =>
+                c.toBlob((b) => (b ? res(b) : rej(new Error("toBlob null"))), "image/png"),
+              );
+              await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
+              setImgCopied(id);
+              if (imgCopyTimerRef.current) clearTimeout(imgCopyTimerRef.current);
+              imgCopyTimerRef.current = setTimeout(() => setImgCopied((c) => (c === id ? null : c)), 1300);
+              return;
+            }
+            if (!svg) return;
             const svgRect = svg.getBoundingClientRect();
             const w = Math.round(svgRect.width) || svg.clientWidth || 800;
             const chartH = Math.round(svgRect.height) || svg.clientHeight || 300;
