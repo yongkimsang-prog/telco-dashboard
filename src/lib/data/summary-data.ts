@@ -205,6 +205,9 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
   const operatorOrder: string[] = [];
   const seenOperators = new Set<string>();
 
+  console.log("[summary-data] quarters detected:", quarters);
+  console.log("[summary-data] total data rows:", rows.length - headerIdx - 1);
+
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r];
     const operatorRaw = (row[operatorCol] ?? "").trim();
@@ -218,11 +221,14 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
     // Metrics column saying "Commentary" or by the KPI being one of the known
     // commentary category names. Captured separately so they aren't nulled out.
     const kpiClean = cleanLabel(kpiRaw);
-    if (unit.toLowerCase() === "commentary" || COMMENTARY_KPI_KEYS.has(kpiClean)) {
+    const isCommentary = unit.toLowerCase() === "commentary" || COMMENTARY_KPI_KEYS.has(kpiClean);
+    console.log(`[summary-data] row ${r}: op=${JSON.stringify(operatorRaw)} kpi=${JSON.stringify(kpiRaw)} unit=${JSON.stringify(unit)} → isCommentary=${isCommentary}`);
+    if (isCommentary) {
       const values: (string | null)[] = quarterCols.map((c) => {
         const raw = (row[c] ?? "").trim();
         return raw === "" ? null : raw;
       });
+      console.log("[summary-data] commentary captured:", { operator, category: kpiClean, values });
       commentary.push({ operator, category: kpiClean, values });
       continue;
     }
