@@ -164,6 +164,17 @@ function splitKpi(rawKpi: string): { baseName: string; view: SeriesView } {
 // shifted every value by one column when positions were hardcoded.
 const QUARTER_LABEL_RE = /^[1-4]q\d{4}$/i;
 
+// KPI names used in commentary rows at the bottom of the summary sheet.
+// Rows whose KPI matches one of these are captured as free text regardless
+// of what the Metrics column contains.
+const COMMENTARY_KPI_KEYS = new Set([
+  "Headlines",
+  "Strength",
+  "Weakness",
+  "Management Explanation",
+  "Overall Assessment",
+]);
+
 function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "sourceUrl"> {
   const rows = parseCsv(csvText);
 
@@ -203,14 +214,16 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
     const operator = normalizeOperator(operatorRaw);
     const unit = cleanLabel((row[metricsCol] ?? "").trim());
 
-    // Commentary rows (Metrics column = "Commentary") contain free text, not
-    // numbers — capture them separately so they aren't silently nulled out.
-    if (unit.toLowerCase() === "commentary") {
+    // Commentary rows contain free text, not numbers — detected either by the
+    // Metrics column saying "Commentary" or by the KPI being one of the known
+    // commentary category names. Captured separately so they aren't nulled out.
+    const kpiClean = cleanLabel(kpiRaw);
+    if (unit.toLowerCase() === "commentary" || COMMENTARY_KPI_KEYS.has(kpiClean)) {
       const values: (string | null)[] = quarterCols.map((c) => {
         const raw = (row[c] ?? "").trim();
         return raw === "" ? null : raw;
       });
-      commentary.push({ operator, category: cleanLabel(kpiRaw), values });
+      commentary.push({ operator, category: kpiClean, values });
       continue;
     }
 
