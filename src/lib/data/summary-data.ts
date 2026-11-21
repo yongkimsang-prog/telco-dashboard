@@ -164,7 +164,7 @@ function splitKpi(rawKpi: string): { baseName: string; view: SeriesView } {
 // shifted every value by one column when positions were hardcoded.
 const QUARTER_LABEL_RE = /^[1-4]q\d{4}$/i;
 
-function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "sourceUrl" | "commentary"> {
+function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "sourceUrl"> {
   const rows = parseCsv(csvText);
 
   const headerIdx = rows.findIndex((r) => r.some((cell) => (cell ?? "").trim().toLowerCase() === "operator"));
@@ -190,6 +190,7 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
   });
 
   const series: SummarySeries[] = [];
+  const commentary: CommentarySeries[] = [];
   const operatorOrder: string[] = [];
   const seenOperators = new Set<string>();
 
@@ -201,6 +202,18 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
 
     const operator = normalizeOperator(operatorRaw);
     const unit = cleanLabel((row[metricsCol] ?? "").trim());
+
+    // Commentary rows (Metrics column = "Commentary") contain free text, not
+    // numbers — capture them separately so they aren't silently nulled out.
+    if (unit.toLowerCase() === "commentary") {
+      const values: (string | null)[] = quarterCols.map((c) => {
+        const raw = (row[c] ?? "").trim();
+        return raw === "" ? null : raw;
+      });
+      commentary.push({ operator, category: cleanLabel(kpiRaw), values });
+      continue;
+    }
+
     const { baseName, view } = splitKpi(kpiRaw);
     const values = quarterCols.map((c) => parseNumericCell(row[c]));
 
@@ -223,7 +236,7 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
     .map(([baseName, v]) => ({ baseName, unit: v.unit, views: [...v.views] }))
     .sort((a, b) => a.baseName.localeCompare(b.baseName));
 
-  return { quarters, operators: operatorOrder, series, metrics };
+  return { quarters, operators: operatorOrder, series, metrics, commentary };
 }
 
 // The commentary tab has its own (much shorter) header row — just Operator |
@@ -279,17 +292,19 @@ export async function fetchSummaryData(): Promise<SummaryData> {
   const csvText = await response.text();
   const parsed = parseSummarySheet(csvText);
 
-  // The commentary tab is fetched separately and best-effort: if it's
-  // missing, renamed, or briefly unreachable, the rest of the dashboard
-  // shouldn't break over it — commentary just shows as empty.
-  let commentary: CommentarySeries[] = [];
-  try {
-    const commentaryResponse = await fetch(commentaryCsvUrl());
-    if (commentaryResponse.ok) {
-      commentary = parseCommentarySheet(await commentaryResponse.text(), parsed.quarters);
+  // Commentary rows at the bottom of the main sheet are preferred (parsed
+  // above). Only fall back to the separate commentary tab when the main sheet
+  // has none — keeping the separate tab as an optional override.
+  let commentary = parsed.commentary;
+  if (commentary.length === 0) {
+    try {
+      const commentaryResponse = await fetch(commentaryCsvUrl());
+      if (commentaryResponse.ok) {
+        commentary = parseCommentarySheet(await commentaryResponse.text(), parsed.quarters);
+      }
+    } catch {
+      /* ignore — commentary is non-critical */
     }
-  } catch {
-    /* ignore — commentary is non-critical */
   }
 
   return {
