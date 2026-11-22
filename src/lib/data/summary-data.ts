@@ -92,9 +92,6 @@ function cleanLabel(raw: string): string {
 
 const OPERATOR_ALIASES: Record<string, string> = {
   IOH: "Indosat/IOH",
-  // The xlsx uses "XL" for every XLSmart row; "XLSmart" is a legacy alias
-  // from earlier sheets. Both map to the canonical bucket "XLS".
-  XL: "XLS",
   XLSmart: "XLS",
   TSEL: "Telkomsel",
 };
@@ -157,12 +154,14 @@ const QUARTER_LABEL_RE = /^[1-4]q\d{4}$/i;
 // KPI names used in commentary rows at the bottom of the summary sheet.
 // Rows whose KPI matches one of these are captured as free text regardless
 // of what the Metrics column contains. Includes alternate spellings used in
-// the xlsx ("Strengths", "Management Action") alongside the canonical forms.
+// the xlsx alongside the canonical forms.
 const COMMENTARY_KPI_KEYS = new Set([
+  "Headline",
   "Headlines",
   "Strength",
   "Strengths",
   "Weakness",
+  "Weaknesses",
   "Management Explanation",
   "Management Action",
   "Overall Assessment",
@@ -171,15 +170,11 @@ const COMMENTARY_KPI_KEYS = new Set([
 // Map alternate KPI spellings from the xlsx to the canonical keys used by the
 // adapter and the UI (EXEC_SUMMARY_CATEGORIES keys).
 const COMMENTARY_CATEGORY_ALIASES: Record<string, string> = {
+  Headline: "Headlines",
   Strengths: "Strength",
+  Weaknesses: "Weakness",
   "Management Action": "Management Explanation",
 };
-
-// Commentary rows in the xlsx (IRO telco stats V3.xlsx) have the commentary
-// TEXT in column A (the Operator column) instead of an operator name — the
-// text is also duplicated in the last quarter column. Operators appear in
-// groups of one-row-per-category, in this fixed order.
-const COMMENTARY_OPERATOR_ORDER = ["Telkomsel", "Indosat/IOH", "XLS"];
 
 function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "sourceUrl"> {
   const rows = parseCsv(csvText);
@@ -211,11 +206,6 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
   const operatorOrder: string[] = [];
   const seenOperators = new Set<string>();
 
-  // Commentary group tracking: in the xlsx the TEXT is in the Operator column
-  // (column A), not an operator name. We infer the operator from the group
-  // position — a new group starts each time we encounter "Headlines".
-  let commentaryGroupIdx = -1;
-
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r];
     const operatorRaw = (row[operatorCol] ?? "").trim();
@@ -230,9 +220,7 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
     const kpiClean = cleanLabel(kpiRaw);
     const isCommentary = unit.toLowerCase() === "commentary" || COMMENTARY_KPI_KEYS.has(kpiClean);
     if (isCommentary) {
-      // A new operator group starts each time we hit "Headlines".
-      if (kpiClean === "Headlines") commentaryGroupIdx++;
-      const commentaryOp = COMMENTARY_OPERATOR_ORDER[commentaryGroupIdx] ?? normalizeOperator(operatorRaw);
+      const commentaryOp = normalizeOperator(operatorRaw);
       const normalizedCategory = COMMENTARY_CATEGORY_ALIASES[kpiClean] ?? kpiClean;
 
       // The text lives in the last quarter column of the xlsx (the same text
