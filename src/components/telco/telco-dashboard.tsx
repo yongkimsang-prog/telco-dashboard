@@ -1419,6 +1419,31 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
         ),
         panel("Net income (PAT)", "Rp trillion / quarter · negative = loss", lineChart(ser("patQ"), labels, { height: 240, zero: true, highlight: labels.length - 1, yfmt: (v: number) => (v / 1000).toFixed(1), vfmt: vT(), tipKey: "fin-pat" }), legend(ser("patQ")), () => tsvSeries(labels, ser("patQ"))),
         panel("Capex (cumulative)", "Rp trillion · year-to-date", lineChart(ser("capexCum"), labels, { height: 240, zero: true, yfmt: (v: number) => (v / 1000).toFixed(0), vfmt: vT(), highlight: labels.length - 1, tipKey: "fin-capex" }), legend(ser("capexCum")), () => tsvSeries(labels, ser("capexCum"))),
+        panel(
+          "Capex / Total Revenue",
+          "% · cumulative year-to-date",
+          lineChart(
+            opsSel.map((op) => ({
+              name: op,
+              color: color(op),
+              data: data.METRICS.capexCum[op].slice(start, idx + 1).map((capex, i) => {
+                const rev = data.METRICS.totalRevenueCum[op][start + i];
+                return capex != null && rev != null && rev !== 0 ? (capex / rev) * 100 : null;
+              }),
+            })),
+            labels,
+            { height: 240, pct: false, yfmt: (v: number) => v.toFixed(0) + "%", vfmt: (v: number) => v.toFixed(1) + "%", highlight: labels.length - 1, tipKey: "fin-capex-rev" },
+          ),
+          legend(ser("capexCum")),
+          () => tsvSeries(labels, opsSel.map((op) => ({
+            name: op,
+            color: color(op),
+            data: data.METRICS.capexCum[op].slice(start, idx + 1).map((capex, i) => {
+              const rev = data.METRICS.totalRevenueCum[op][start + i];
+              return capex != null && rev != null && rev !== 0 ? (capex / rev) * 100 : null;
+            }),
+          }))),
+        ),
       ),
     );
   }
