@@ -6,20 +6,53 @@
 const SUMMARY_FILE_ID = "1_tBU2uRyVcNOu1r7LcYhwqYJRPYR6p9w";
 const SUMMARY_SHEET_NAME = "Summary";
 
-// gviz/tq strips text values from numeric columns (quarter columns are typed
-// as numeric since most rows contain numbers). export?format=csv returns raw
-// cell values so commentary text in quarter cells is included.
-// Summary sheet sheetId = 2 (from the xlsx workbook.xml).
-const SUMMARY_SHEET_GID = 2;
-
 function summaryCsvUrl(): string {
-  return `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/export?format=csv&gid=${SUMMARY_SHEET_GID}`;
+  return `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SUMMARY_SHEET_NAME)}`;
 }
 
-function commentaryCsvUrl(): string {
-  // Fallback commentary tab (optional override). If the Summary sheet already
-  // has commentary rows at the bottom, this is never fetched.
-  return `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/gviz/tq?tqx=out:csv&sheet=Commentary`;
+// gviz infers column types from dominant data. Quarter columns (D–AD) are
+// mostly numeric, so gviz strips text values in commentary rows. Fix: fetch
+// only the commentary rows in isolation — in that narrow range all quarter
+// cells are text, so gviz types them as text and returns them correctly.
+// 3 operators × 5 categories = 15 commentary rows at the bottom of the sheet.
+const COMMENTARY_ROW_COUNT = 15;
+
+function commentaryRangeUrl(rangeStart: number, rangeEnd: number, lastCol: string): string {
+  return (
+    `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/gviz/tq` +
+    `?tqx=out:csv&sheet=${encodeURIComponent(SUMMARY_SHEET_NAME)}` +
+    `&range=A${rangeStart}:${lastCol}${rangeEnd}&headers=0`
+  );
+}
+
+// Convert 1-based column number to Excel letter(s): 1→A, 26→Z, 27→AA, 30→AD
+function columnLetter(n: number): string {
+  let s = "";
+  while (n > 0) { n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
+  return s;
+}
+
+// Parse commentary rows from a headerless gviz range response.
+// Columns: 0=Operator, 1=KPI, 2=Metrics, 3..=(quarter values in master order).
+function parseCommentaryRows(rows: string[][], masterQuarters: string[]): CommentarySeries[] {
+  const result: CommentarySeries[] = [];
+  for (const row of rows) {
+    const operatorRaw = (row[0] ?? "").trim();
+    const kpiRaw = (row[1] ?? "").trim();
+    if (!operatorRaw || !kpiRaw) continue;
+    const kpiClean = cleanLabel(kpiRaw);
+    const unit = cleanLabel((row[2] ?? "").trim());
+    if (unit.toLowerCase() !== "commentary" && !COMMENTARY_KPI_KEYS.has(kpiClean)) continue;
+    const operator = normalizeOperator(operatorRaw);
+    const normalizedCategory = COMMENTARY_CATEGORY_ALIASES[kpiClean] ?? kpiClean;
+    const values: (string | null)[] = new Array(masterQuarters.length).fill(null);
+    for (let qi = 0; qi < masterQuarters.length; qi++) {
+      const raw = (row[qi + 3] ?? "").trim();
+      if (raw) values[qi] = raw;
+    }
+    result.push({ operator, category: normalizedCategory, values });
+  }
+  return result;
 }
 
 // --- Minimal RFC4180 CSV parser (quoted fields, embedded commas, "" escape) --
@@ -290,49 +323,9 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
   return { quarters: trimmedQuarters, operators: operatorOrder, series: trimmedSeries, metrics, commentary: trimmedCommentary };
 }
 
-// The commentary tab has its own (much shorter) header row — just Operator |
-// KPI | Metrics | whichever quarter columns actually have commentary so far
-// — so its quarter columns are mapped by label into the master quarters
-// list (from the main tab) rather than assumed to line up positionally.
-function parseCommentarySheet(csvText: string, masterQuarters: string[]): CommentarySeries[] {
-  const rows = parseCsv(csvText);
-  const headerIdx = rows.findIndex((r) => r.some((cell) => (cell ?? "").trim().toLowerCase() === "operator"));
-  if (headerIdx === -1) return [];
 
-  const header = rows[headerIdx];
-  const operatorCol = header.findIndex((c) => (c ?? "").trim().toLowerCase() === "operator");
-  const kpiCol = header.findIndex((c) => (c ?? "").trim().toLowerCase() === "kpi");
-  if (operatorCol === -1 || kpiCol === -1) return [];
 
-  const colToMasterIdx = new Map<number, number>();
-  header.forEach((cell, c) => {
-    const label = (cell ?? "").trim();
-    const masterIdx = masterQuarters.findIndex((q) => q.toLowerCase() === label.toLowerCase());
-    if (masterIdx !== -1) colToMasterIdx.set(c, masterIdx);
-  });
-
-  const commentary: CommentarySeries[] = [];
-  for (let r = headerIdx + 1; r < rows.length; r++) {
-    const row = rows[r];
-    const operatorRaw = (row[operatorCol] ?? "").trim();
-    const kpiRaw = (row[kpiCol] ?? "").trim();
-    if (!operatorRaw || !kpiRaw) continue;
-
-    const operator = normalizeOperator(operatorRaw);
-    const values: (string | null)[] = new Array(masterQuarters.length).fill(null);
-    colToMasterIdx.forEach((masterIdx, col) => {
-      const raw = (row[col] ?? "").trim();
-      values[masterIdx] = raw === "" ? null : raw;
-    });
-    commentary.push({ operator, category: cleanLabel(kpiRaw), values });
-  }
-  return commentary;
-}
-
-// Runs in the BROWSER, not on the server: Google's gviz endpoint reflects
-// CORS for any origin, so fetching it client-side works. (A server-side
-// fetch from this Worker is blocked by the hosting platform for this
-// workspace's plan, so this is not merely a style choice.)
+// Runs in the BROWSER: Google's gviz endpoint supports CORS for public files.
 export async function fetchSummaryData(): Promise<SummaryData> {
   const response = await fetch(summaryCsvUrl());
   if (!response.ok) {
@@ -341,20 +334,28 @@ export async function fetchSummaryData(): Promise<SummaryData> {
     );
   }
   const csvText = await response.text();
+  const rawRows = parseCsv(csvText);
+  const totalSheetRows = rawRows.length; // header row + data rows + commentary rows
   const parsed = parseSummarySheet(csvText);
 
-  // Commentary rows at the bottom of the main sheet are preferred (parsed
-  // above). Only fall back to the separate commentary tab when the main sheet
-  // has none — keeping the separate tab as an optional override.
+  // gviz strips text values from numeric-typed columns (quarter columns are
+  // typed numeric since most rows have numbers), so commentary text arrays
+  // from parseSummarySheet are empty. Fix: re-fetch just the last
+  // COMMENTARY_ROW_COUNT rows in a separate gviz range query. In that narrow
+  // range every quarter cell is text, so gviz types those columns as text and
+  // returns the values correctly.
   let commentary = parsed.commentary;
-  if (commentary.length === 0) {
+  if (totalSheetRows > COMMENTARY_ROW_COUNT) {
+    const rangeStart = totalSheetRows - COMMENTARY_ROW_COUNT + 1;
+    const lastCol = columnLetter(3 + parsed.quarters.length); // "AD" for 27 quarters
+    const url = commentaryRangeUrl(rangeStart, totalSheetRows, lastCol);
     try {
-      const commentaryResponse = await fetch(commentaryCsvUrl());
-      if (commentaryResponse.ok) {
-        commentary = parseCommentarySheet(await commentaryResponse.text(), parsed.quarters);
+      const r = await fetch(url);
+      if (r.ok) {
+        commentary = parseCommentaryRows(parseCsv(await r.text()), parsed.quarters);
       }
     } catch {
-      /* ignore — commentary is non-critical */
+      /* non-critical — fall back to empty commentary */
     }
   }
 
