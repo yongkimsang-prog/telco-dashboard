@@ -1,27 +1,19 @@
 // ---------------------------------------------------------------------------
-// Live data source. The Summary tab of this Google Sheet is the single
-// source of truth: editing it there is reflected here on the next fetch,
-// nothing is cached in the repo. The sheet must stay shared as
-// "Anyone with the link — Viewer" for this public CSV export to work.
+// Live data source: IRO telco stats V3.xlsx stored in Google Drive, shared
+// as "Anyone with the link — Viewer". The Summary sheet is the single source
+// of truth; editing it there is reflected here on the next fetch.
 // ---------------------------------------------------------------------------
-const SUMMARY_SHEET_ID = "1rGeakuFynUJBPMl1yj6PbAcOGzt8Rjo5wTTRWLLKOU0";
-
-// The executive-summary commentary lives on its own tab, separate from the
-// main numeric tab (gid=0). This is required, not just tidier: Google's
-// gviz export infers ONE data type per column from the whole column's
-// content, so free text sharing a quarter column with 5+ years of numeric
-// rows gets silently dropped from the export — moving it to a tab that's
-// 100% text avoids that entirely.
-const EXEC_SUMMARY_TAB_GID = "1070102048";
+const SUMMARY_FILE_ID = "1_tBU2uRyVcNOu1r7LcYhwqYJRPYR6p9w";
+const SUMMARY_SHEET_NAME = "Summary";
 
 function summaryCsvUrl(): string {
-  // Single-tab sheet — the default (first) tab is the Summary data, so no
-  // `&sheet=` name lookup is needed (robust to the tab being renamed).
-  return `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
+  return `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SUMMARY_SHEET_NAME)}`;
 }
 
 function commentaryCsvUrl(): string {
-  return `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${EXEC_SUMMARY_TAB_GID}`;
+  // Fallback commentary tab (optional override). If the Summary sheet already
+  // has commentary rows at the bottom, this is never fetched.
+  return `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/gviz/tq?tqx=out:csv&sheet=Commentary`;
 }
 
 // --- Minimal RFC4180 CSV parser (quoted fields, embedded commas, "" escape) --
@@ -330,6 +322,6 @@ export async function fetchSummaryData(): Promise<SummaryData> {
     ...parsed,
     commentary,
     fetchedAt: new Date().toISOString(),
-    sourceUrl: `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/edit`,
+    sourceUrl: `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/edit`,
   };
 }
