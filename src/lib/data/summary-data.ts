@@ -92,12 +92,10 @@ function cleanLabel(raw: string): string {
 
 const OPERATOR_ALIASES: Record<string, string> = {
   IOH: "Indosat/IOH",
-  // Almost every XLS row uses operator "XLS", but a handful (e.g. "FBB
-  // Subscribers") are entered under "XLSmart" instead — fold them into the
-  // same bucket so they aren't silently dropped.
+  // The xlsx uses "XL" for every XLSmart row; "XLSmart" is a legacy alias
+  // from earlier sheets. Both map to the canonical bucket "XLS".
+  XL: "XLS",
   XLSmart: "XLS",
-  // The executive-summary commentary block at the bottom of the sheet uses
-  // short operator codes instead of the full names used everywhere else.
   TSEL: "Telkomsel",
 };
 
@@ -158,14 +156,30 @@ const QUARTER_LABEL_RE = /^[1-4]q\d{4}$/i;
 
 // KPI names used in commentary rows at the bottom of the summary sheet.
 // Rows whose KPI matches one of these are captured as free text regardless
-// of what the Metrics column contains.
+// of what the Metrics column contains. Includes alternate spellings used in
+// the xlsx ("Strengths", "Management Action") alongside the canonical forms.
 const COMMENTARY_KPI_KEYS = new Set([
   "Headlines",
   "Strength",
+  "Strengths",
   "Weakness",
   "Management Explanation",
+  "Management Action",
   "Overall Assessment",
 ]);
+
+// Map alternate KPI spellings from the xlsx to the canonical keys used by the
+// adapter and the UI (EXEC_SUMMARY_CATEGORIES keys).
+const COMMENTARY_CATEGORY_ALIASES: Record<string, string> = {
+  Strengths: "Strength",
+  "Management Action": "Management Explanation",
+};
+
+// Commentary rows in the xlsx (IRO telco stats V3.xlsx) have the commentary
+// TEXT in column A (the Operator column) instead of an operator name — the
+// text is also duplicated in the last quarter column. Operators appear in
+// groups of one-row-per-category, in this fixed order.
+const COMMENTARY_OPERATOR_ORDER = ["Telkomsel", "Indosat/IOH", "XLS"];
 
 function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "sourceUrl"> {
   const rows = parseCsv(csvText);
@@ -197,8 +211,10 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
   const operatorOrder: string[] = [];
   const seenOperators = new Set<string>();
 
-  console.log("[summary-data] quarters detected:", quarters);
-  console.log("[summary-data] total data rows:", rows.length - headerIdx - 1);
+  // Commentary group tracking: in the xlsx the TEXT is in the Operator column
+  // (column A), not an operator name. We infer the operator from the group
+  // position — a new group starts each time we encounter "Headlines".
+  let commentaryGroupIdx = -1;
 
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r];
@@ -206,24 +222,34 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
     const kpiRaw = (row[kpiCol] ?? "").trim();
     if (!operatorRaw || !kpiRaw) continue;
 
-    const operator = normalizeOperator(operatorRaw);
     const unit = cleanLabel((row[metricsCol] ?? "").trim());
 
     // Commentary rows contain free text, not numbers — detected either by the
     // Metrics column saying "Commentary" or by the KPI being one of the known
-    // commentary category names. Captured separately so they aren't nulled out.
+    // commentary category names.
     const kpiClean = cleanLabel(kpiRaw);
     const isCommentary = unit.toLowerCase() === "commentary" || COMMENTARY_KPI_KEYS.has(kpiClean);
-    console.log(`[summary-data] row ${r}: op=${JSON.stringify(operatorRaw)} kpi=${JSON.stringify(kpiRaw)} unit=${JSON.stringify(unit)} → isCommentary=${isCommentary}`);
     if (isCommentary) {
+      // A new operator group starts each time we hit "Headlines".
+      if (kpiClean === "Headlines") commentaryGroupIdx++;
+      const commentaryOp = COMMENTARY_OPERATOR_ORDER[commentaryGroupIdx] ?? normalizeOperator(operatorRaw);
+      const normalizedCategory = COMMENTARY_CATEGORY_ALIASES[kpiClean] ?? kpiClean;
+
+      // The text lives in the last quarter column of the xlsx (the same text
+      // is also in column A, used as a fallback when gviz strips the column).
       const values: (string | null)[] = quarterCols.map((c) => {
         const raw = (row[c] ?? "").trim();
         return raw === "" ? null : raw;
       });
-      console.log("[summary-data] commentary captured:", { operator, category: kpiClean, values });
-      commentary.push({ operator, category: kpiClean, values });
+      if (!values.some((v) => v !== null) && operatorRaw) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (values as any)[values.length - 1] = operatorRaw;
+      }
+      commentary.push({ operator: commentaryOp, category: normalizedCategory, values });
       continue;
     }
+
+    const operator = normalizeOperator(operatorRaw);
 
     const { baseName, view } = splitKpi(kpiRaw);
     const values = quarterCols.map((c) => parseNumericCell(row[c]));
@@ -247,7 +273,33 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
     .map(([baseName, v]) => ({ baseName, unit: v.unit, views: [...v.views] }))
     .sort((a, b) => a.baseName.localeCompare(b.baseName));
 
-  return { quarters, operators: operatorOrder, series, metrics, commentary };
+  // Drop trailing quarters that have no numeric data at all — the xlsx
+  // pre-creates future quarter columns (e.g. 1Q2026–3Q2026) with empty cells.
+  // If those columns are present, the dashboard would default to the last
+  // empty period and show n/a for every metric. Trim to the last quarter
+  // that has at least one non-null value across any series.
+  let lastDataIdx = quarters.length - 1;
+  for (let qi = quarters.length - 1; qi >= 0; qi--) {
+    const hasData = series.some((s) => s.values[qi] != null);
+    if (hasData) { lastDataIdx = qi; break; }
+  }
+  const trimmedQuarters = quarters.slice(0, lastDataIdx + 1);
+  const trimmedSeries = series.map((s) => ({ ...s, values: s.values.slice(0, lastDataIdx + 1) }));
+  // Commentary values are aligned to trimmedQuarters. The xlsx stores the text
+  // in the last quarter column (which may be beyond lastDataIdx); if trimming
+  // drops the text, rescue it by placing it at the new last position instead.
+  const trimmedCommentary = commentary.map((c) => {
+    const sliced = new Array<string | null>(lastDataIdx + 1).fill(null);
+    for (let i = 0; i <= lastDataIdx && i < c.values.length; i++) sliced[i] = c.values[i];
+    if (!sliced.some((v) => v !== null)) {
+      // Text was stored beyond the trim point — move it to the last slot.
+      const rescued = c.values.slice(lastDataIdx + 1).find((v) => v !== null) ?? null;
+      if (rescued) sliced[lastDataIdx] = rescued;
+    }
+    return { ...c, values: sliced };
+  });
+
+  return { quarters: trimmedQuarters, operators: operatorOrder, series: trimmedSeries, metrics, commentary: trimmedCommentary };
 }
 
 // The commentary tab has its own (much shorter) header row — just Operator |
