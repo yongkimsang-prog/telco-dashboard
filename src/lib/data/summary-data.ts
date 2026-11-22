@@ -6,8 +6,14 @@
 const SUMMARY_FILE_ID = "1_tBU2uRyVcNOu1r7LcYhwqYJRPYR6p9w";
 const SUMMARY_SHEET_NAME = "Summary";
 
+// gviz/tq strips text values from numeric columns (quarter columns are typed
+// as numeric since most rows contain numbers). export?format=csv returns raw
+// cell values so commentary text in quarter cells is included.
+// Summary sheet sheetId = 2 (from the xlsx workbook.xml).
+const SUMMARY_SHEET_GID = 2;
+
 function summaryCsvUrl(): string {
-  return `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SUMMARY_SHEET_NAME)}`;
+  return `https://docs.google.com/spreadsheets/d/${SUMMARY_FILE_ID}/export?format=csv&gid=${SUMMARY_SHEET_GID}`;
 }
 
 function commentaryCsvUrl(): string {
@@ -223,16 +229,10 @@ function parseSummarySheet(csvText: string): Omit<SummaryData, "fetchedAt" | "so
       const commentaryOp = normalizeOperator(operatorRaw);
       const normalizedCategory = COMMENTARY_CATEGORY_ALIASES[kpiClean] ?? kpiClean;
 
-      // The text lives in the last quarter column of the xlsx (the same text
-      // is also in column A, used as a fallback when gviz strips the column).
       const values: (string | null)[] = quarterCols.map((c) => {
         const raw = (row[c] ?? "").trim();
         return raw === "" ? null : raw;
       });
-      if (!values.some((v) => v !== null) && operatorRaw) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (values as any)[values.length - 1] = operatorRaw;
-      }
       commentary.push({ operator: commentaryOp, category: normalizedCategory, values });
       continue;
     }
