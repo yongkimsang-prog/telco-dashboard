@@ -1125,12 +1125,17 @@ export function TelcoDashboard({ data, defaultTab, onRefresh, refreshing, refres
   function leagueTable(kpis: KpiDef[]) {
     const opsSel = selectedOps();
     const idx = qi();
-    // MoM (quarter-over-quarter) always compares the raw quarterly series,
-    // regardless of the YTD/Quarter toggle — unlike the YoY chip (which
-    // follows kpiData's mode-dependent cum/quarterly sourcing), this column
-    // is meant to answer "vs. last quarter" the same way no matter what
-    // period is selected.
     const momGrowth = (k: KpiDef, op: TelcoOperator): Growth | null => {
+      if (mode === "ytd") {
+        const cum = k.cum ? data.METRICS[k.cum][op] : null;
+        if (cum) {
+          // Q1 YTD has no prior YTD quarter to compare against
+          if (idx % 4 === 0) return null;
+          return growth(cum[idx], cum[idx - 1], k.k === "pct");
+        }
+        // flow type without cumulative series: YTD sum QoQ not meaningful
+        return null;
+      }
       const q = data.METRICS[k.q][op];
       return growth(q[idx], q[idx - 1], k.k === "pct");
     };
